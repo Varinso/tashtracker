@@ -63,6 +63,10 @@ const CalendarView = () => {
     navigate(`/tasks?taskId=${taskId}`);
   };
 
+  const handleMeetingClick = (meetingId: string) => {
+    navigate(`/meetings?meetingId=${meetingId}`);
+  };
+
   const headerLabel = viewMode === "month"
     ? format(currentDate, "MMMM yyyy")
     : viewMode === "week"
@@ -92,21 +96,22 @@ const CalendarView = () => {
         <Button variant="outline" size="icon" onClick={() => nav(1)}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
-      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
-      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
+      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
+      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
+      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
     </div>
   );
 };
 
-type ViewProps = { currentDate: Date; getEventsForDay: (d: Date) => any[]; onTaskClick: (id: string) => void };
+type ViewProps = { currentDate: Date; getEventsForDay: (d: Date) => any[]; onTaskClick: (id: string) => void; onMeetingClick: (id: string) => void };
 
-function EventItem({ e, onTaskClick }: { e: any; onTaskClick: (id: string) => void }) {
+function EventItem({ e, onTaskClick, onMeetingClick }: { e: any; onTaskClick: (id: string) => void; onMeetingClick: (id: string) => void }) {
   const isTask = e.type === "task";
+  const isMeeting = e.type === "meeting";
   const isDone = isTask && e.status === "done";
   return (
     <div
-      onClick={(ev) => { if (isTask) { ev.stopPropagation(); onTaskClick(e.id); } }}
+      onClick={(ev) => { ev.stopPropagation(); if (isTask) onTaskClick(e.id); else if (isMeeting) onMeetingClick(e.id); }}
       className={`text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
         isTask
           ? isDone
@@ -120,7 +125,7 @@ function EventItem({ e, onTaskClick }: { e: any; onTaskClick: (id: string) => vo
   );
 }
 
-function MonthView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function MonthView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart);
@@ -148,7 +153,7 @@ function MonthView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
                 </span>
                 <div className="mt-1 space-y-1">
                   {events.slice(0, 3).map((e, i) => (
-                    <EventItem key={i} e={e} onTaskClick={onTaskClick} />
+                    <EventItem key={i} e={e} onTaskClick={onTaskClick} onMeetingClick={onMeetingClick} />
                   ))}
                   {events.length > 3 && <span className="text-xs text-muted-foreground">+{events.length - 3} more</span>}
                 </div>
@@ -161,7 +166,7 @@ function MonthView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
   );
 }
 
-function WeekView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function WeekView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const weekStart = startOfWeek(currentDate);
   const days = eachDayOfInterval({ start: weekStart, end: endOfWeek(currentDate) });
   const hours = Array.from({ length: 14 }, (_, i) => i + 7);
@@ -185,7 +190,7 @@ function WeekView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
                 return (
                   <div key={d.toISOString() + h} className="border-r border-b min-h-[48px] p-0.5 relative">
                     {h === 7 && dayEvents.map((e, i) => (
-                      <EventItem key={i} e={e} onTaskClick={onTaskClick} />
+                      <EventItem key={i} e={e} onTaskClick={onTaskClick} onMeetingClick={onMeetingClick} />
                     ))}
                   </div>
                 );
@@ -198,7 +203,7 @@ function WeekView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
   );
 }
 
-function DayView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function DayView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const events = getEventsForDay(currentDate);
   const hours = Array.from({ length: 14 }, (_, i) => i + 7);
 
@@ -212,7 +217,7 @@ function DayView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
               {h === 7 && events.map((e, i) => (
                 <div
                   key={i}
-                  onClick={() => e.type === "task" && onTaskClick(e.id)}
+                  onClick={() => { if (e.type === "task") onTaskClick(e.id); else if (e.type === "meeting") onMeetingClick(e.id); }}
                   className={`px-3 py-2 rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}
                 >
                   <span className="text-sm font-medium">{e.title}</span>

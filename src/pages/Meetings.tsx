@@ -10,10 +10,12 @@ import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
 import { Plus, Calendar, FileText, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 
 const Meetings = () => {
   const { currentProject } = useProject();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editMeeting, setEditMeeting] = useState<any>(null);
@@ -33,6 +35,22 @@ const Meetings = () => {
   };
 
   useEffect(() => { fetchMeetings(); }, [currentProject]);
+
+  // Deep-link: auto-open meeting from URL param
+  useEffect(() => {
+    const meetingId = searchParams.get("meetingId");
+    if (meetingId && meetings.length > 0) {
+      const m = meetings.find((m) => m.id === meetingId);
+      if (m) {
+        setEditMeeting(m);
+        setTitle(m.title);
+        setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
+        setNotes(m.notes || "");
+        setShowCreate(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [meetings, searchParams]);
 
   const resetForm = () => { setTitle(""); setMeetingDate(""); setNotes(""); setEditMeeting(null); };
 
