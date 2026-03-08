@@ -260,6 +260,23 @@ const Tasks = () => {
                 </Badge>
                 {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
               </div>
+              {/* Compact non-expanded: show deadline & assignees */}
+              {compact && !isExpanded && (
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                  {task.deadline && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(task.deadline), "MMM d")}
+                    </span>
+                  )}
+                  {assignees.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {assignees.join(", ")}
+                    </span>
+                  )}
+                </div>
+              )
               {/* Compact expanded details (kanban) */}
               {compact && isExpanded && (
                 <div className="mt-2 space-y-2 border-t pt-2">
