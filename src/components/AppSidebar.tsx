@@ -9,6 +9,7 @@ import {
   Plus,
   LogOut,
   ChevronDown,
+  BarChart3,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -42,6 +43,7 @@ const navItems = [
   { title: "Documents", url: "/documents", icon: FolderOpen },
   { title: "Meetings", url: "/meetings", icon: MessageSquare },
   { title: "Team", url: "/team", icon: Users },
+  { title: "Team Progress", url: "/team-progress", icon: BarChart3 },
 ];
 
 export function AppSidebar() {

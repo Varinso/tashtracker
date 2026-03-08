@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Search, Calendar, User, MoreHorizontal } from "lucide-react";
+import { Plus, Search, Calendar, User, MoreHorizontal, X } from "lucide-react";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -46,6 +46,7 @@ const Tasks = () => {
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [phase, setPhase] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchTasks = async () => {
@@ -69,6 +70,9 @@ const Tasks = () => {
 
   useEffect(() => { fetchTasks(); fetchMembers(); }, [currentProject]);
 
+  const currentUserRole = members.find((m) => m.user_id === user?.id)?.role;
+  const isLeader = currentUserRole === "leader" || currentUserRole === "admin";
+
   const openEdit = (task: any) => {
     setEditTask(task);
     setTitle(task.title);
@@ -76,11 +80,12 @@ const Tasks = () => {
     setStatus(task.status);
     setPhase(task.phase || "");
     setDeadline(task.deadline ? format(new Date(task.deadline), "yyyy-MM-dd") : "");
+    setAssignedUserIds(task.task_assignments?.map((a: any) => a.user_id) || []);
     setShowCreate(true);
   };
 
   const resetForm = () => {
-    setTitle(""); setDescription(""); setStatus("todo"); setPhase(""); setDeadline(""); setEditTask(null);
+    setTitle(""); setDescription(""); setStatus("todo"); setPhase(""); setDeadline(""); setEditTask(null); setAssignedUserIds([]);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -98,15 +103,32 @@ const Tasks = () => {
         created_by: user.id,
       };
 
+      let taskId: string;
+
       if (editTask) {
         const { error } = await supabase.from("tasks").update(taskData).eq("id", editTask.id);
         if (error) throw error;
-        toast.success("Task updated!");
+        taskId = editTask.id;
       } else {
-        const { error } = await supabase.from("tasks").insert(taskData);
+        const { data, error } = await supabase.from("tasks").insert(taskData).select("id").single();
         if (error) throw error;
-        toast.success("Task created!");
+        taskId = data.id;
       }
+
+      // Sync assignments
+      if (isLeader || !editTask) {
+        // Delete old assignments
+        await supabase.from("task_assignments").delete().eq("task_id", taskId);
+        // Insert new ones
+        if (assignedUserIds.length > 0) {
+          const { error: assignError } = await supabase.from("task_assignments").insert(
+            assignedUserIds.map((uid) => ({ task_id: taskId, user_id: uid }))
+          );
+          if (assignError) throw assignError;
+        }
+      }
+
+      toast.success(editTask ? "Task updated!" : "Task created!");
       fetchTasks();
       setShowCreate(false);
       resetForm();
@@ -127,6 +149,12 @@ const Tasks = () => {
     const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", id);
     if (error) toast.error(error.message);
     else fetchTasks();
+  };
+
+  const toggleAssignment = (userId: string) => {
+    setAssignedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
   };
 
   const filtered = tasks
@@ -153,9 +181,7 @@ const Tasks = () => {
           <Input placeholder="Search tasks..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="todo">To Do</SelectItem>
@@ -241,6 +267,30 @@ const Tasks = () => {
               <Input placeholder="Phase (e.g. Research)" value={phase} onChange={(e) => setPhase(e.target.value)} />
             </div>
             <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+
+            {/* Assign Members */}
+            {members.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Assign to</label>
+                <div className="flex flex-wrap gap-2">
+                  {members.map((m) => {
+                    const selected = assignedUserIds.includes(m.user_id);
+                    return (
+                      <Badge
+                        key={m.user_id}
+                        variant={selected ? "default" : "outline"}
+                        className={`cursor-pointer transition-colors ${selected ? "" : "hover:bg-accent"}`}
+                        onClick={() => toggleAssignment(m.user_id)}
+                      >
+                        {(m.profiles as any)?.display_name || "Unknown"}
+                        {selected && <X className="h-3 w-3 ml-1" />}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
               <Button type="submit" disabled={loading}>{loading ? "Saving..." : editTask ? "Update" : "Create"}</Button>
