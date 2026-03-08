@@ -48,8 +48,9 @@ const Dashboard = () => {
     { name: "Done", value: doneTasks },
   ];
 
-  const phaseData = tasks.reduce((acc: any[], t) => {
-    const phase = t.phase || "Unassigned";
+  const tasksWithPhase = tasks.filter((t) => t.phase);
+  const phaseData = tasksWithPhase.reduce((acc: any[], t) => {
+    const phase = t.phase!;
     const existing = acc.find((a) => a.phase === phase);
     if (existing) { existing.total++; if (t.status === "done") existing.done++; }
     else { acc.push({ phase, total: 1, done: t.status === "done" ? 1 : 0 }); }
