@@ -217,7 +217,7 @@ function DayView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: 
               {h === 7 && events.map((e, i) => (
                 <div
                   key={i}
-                  onClick={() => e.type === "task" && onTaskClick(e.id)}
+                  onClick={() => { if (e.type === "task") onTaskClick(e.id); else if (e.type === "meeting") onMeetingClick(e.id); }}
                   className={`px-3 py-2 rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}
                 >
                   <span className="text-sm font-medium">{e.title}</span>
