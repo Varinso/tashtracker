@@ -10,11 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Search, Calendar, User, MoreHorizontal, X } from "lucide-react";
+import { Plus, Search, Calendar, User, MoreHorizontal, X, List, Columns3 } from "lucide-react";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type TaskStatus = "todo" | "in_progress" | "review" | "done";
+type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: "To Do",
@@ -26,9 +28,41 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 const STATUS_COLORS: Record<TaskStatus, string> = {
   todo: "bg-muted text-muted-foreground",
   in_progress: "bg-primary/10 text-primary",
-  review: "bg-warning/10 text-warning-foreground",
-  done: "bg-success/10 text-foreground",
+  review: "bg-accent text-accent-foreground",
+  done: "bg-muted text-muted-foreground opacity-70",
 };
+
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  urgent: "Urgent",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  urgent: "bg-destructive/15 text-destructive border-destructive/30",
+  high: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
+  medium: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
+  low: "bg-muted text-muted-foreground border-border",
+};
+
+const PRIORITY_WEIGHT: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
+
+const STATUSES: TaskStatus[] = ["todo", "in_progress", "review", "done"];
+
+function sortTasks(tasks: any[]) {
+  return [...tasks].sort((a, b) => {
+    // Done tasks go to the bottom
+    if (a.status === "done" && b.status !== "done") return 1;
+    if (a.status !== "done" && b.status === "done") return -1;
+    // Then by priority (higher first)
+    const pa = PRIORITY_WEIGHT[a.priority] ?? 2;
+    const pb = PRIORITY_WEIGHT[b.priority] ?? 2;
+    if (pb !== pa) return pb - pa;
+    // Then by created_at desc
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+}
 
 const Tasks = () => {
   const { currentProject } = useProject();
@@ -39,11 +73,14 @@ const Tasks = () => {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
 
   // Create/edit form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
   const [phase, setPhase] = useState("");
   const [deadline, setDeadline] = useState("");
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
@@ -78,6 +115,7 @@ const Tasks = () => {
     setTitle(task.title);
     setDescription(task.description || "");
     setStatus(task.status);
+    setPriority(task.priority || "medium");
     setPhase(task.phase || "");
     setDeadline(task.deadline ? format(new Date(task.deadline), "yyyy-MM-dd") : "");
     setAssignedUserIds(task.task_assignments?.map((a: any) => a.user_id) || []);
@@ -85,7 +123,7 @@ const Tasks = () => {
   };
 
   const resetForm = () => {
-    setTitle(""); setDescription(""); setStatus("todo"); setPhase(""); setDeadline(""); setEditTask(null); setAssignedUserIds([]);
+    setTitle(""); setDescription(""); setStatus("todo"); setPriority("medium"); setPhase(""); setDeadline(""); setEditTask(null); setAssignedUserIds([]);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -97,6 +135,7 @@ const Tasks = () => {
         title: title.trim(),
         description: description.trim() || null,
         status,
+        priority,
         phase: phase.trim() || null,
         deadline: deadline || null,
         project_id: currentProject.id,
@@ -117,9 +156,7 @@ const Tasks = () => {
 
       // Sync assignments
       if (isLeader || !editTask) {
-        // Delete old assignments
         await supabase.from("task_assignments").delete().eq("task_id", taskId);
-        // Insert new ones
         if (assignedUserIds.length > 0) {
           const { error: assignError } = await supabase.from("task_assignments").insert(
             assignedUserIds.map((uid) => ({ task_id: taskId, user_id: uid }))
@@ -157,21 +194,97 @@ const Tasks = () => {
     );
   };
 
-  const filtered = tasks
-    .filter((t) => filter === "all" || t.status === filter)
-    .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()));
+  const filtered = sortTasks(
+    tasks
+      .filter((t) => filter === "all" || t.status === filter)
+      .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  // Drag and drop handlers
+  const handleDragStart = (taskId: string) => setDragTaskId(taskId);
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleDrop = (targetStatus: TaskStatus) => {
+    if (dragTaskId) {
+      updateStatus(dragTaskId, targetStatus);
+      setDragTaskId(null);
+    }
+  };
 
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project to view tasks</div>;
   }
 
+  const TaskCard = ({ task, compact = false }: { task: any; compact?: boolean }) => (
+    <Card
+      className={`hover:shadow-md transition-shadow cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""}`}
+      draggable
+      onDragStart={() => handleDragStart(task.id)}
+      onClick={() => openEdit(task)}
+    >
+      <CardContent className={compact ? "p-3" : "p-4 flex items-center gap-4"}>
+        <div className={compact ? "" : "flex-1 min-w-0"}>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className={`font-semibold truncate ${compact ? "text-sm" : ""}`}>{task.title}</h3>
+            {!compact && (
+              <Badge variant="secondary" className={STATUS_COLORS[task.status as TaskStatus]}>
+                {STATUS_LABELS[task.status as TaskStatus]}
+              </Badge>
+            )}
+            <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[task.priority as TaskPriority] || PRIORITY_COLORS.medium}`}>
+              {PRIORITY_LABELS[task.priority as TaskPriority] || "Medium"}
+            </Badge>
+            {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
+          </div>
+          {task.description && <p className="text-xs text-muted-foreground truncate">{task.description}</p>}
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+            {task.deadline && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {format(new Date(task.deadline), "MMM d")}
+              </span>
+            )}
+            {task.task_assignments?.length > 0 && (
+              <span className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                {task.task_assignments.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean).join(", ")}
+              </span>
+            )}
+          </div>
+        </div>
+        {!compact && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {STATUSES.map((s) => (
+                <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); updateStatus(task.id, s); }}>
+                  Move to {STATUS_LABELS[s]}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
-        <Button onClick={() => { resetForm(); setShowCreate(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> New Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as any)}>
+            <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4" /></ToggleGroupItem>
+            <ToggleGroupItem value="kanban" aria-label="Kanban view"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
+          </ToggleGroup>
+          <Button onClick={() => { resetForm(); setShowCreate(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> New Task
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -180,70 +293,55 @@ const Tasks = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search tasks..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="todo">To Do</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="review">Review</SelectItem>
-            <SelectItem value="done">Done</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Task list */}
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground">No tasks found</CardContent></Card>
-        ) : (
-          filtered.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openEdit(task)}>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold truncate">{task.title}</h3>
-                    <Badge variant="secondary" className={STATUS_COLORS[task.status as TaskStatus]}>
-                      {STATUS_LABELS[task.status as TaskStatus]}
-                    </Badge>
-                    {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
-                  </div>
-                  {task.description && <p className="text-sm text-muted-foreground truncate">{task.description}</p>}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    {task.deadline && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(task.deadline), "MMM d, yyyy")}
-                      </span>
-                    )}
-                    {task.task_assignments?.length > 0 && (
-                      <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {task.task_assignments.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean).join(", ")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((s) => (
-                      <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); updateStatus(task.id, s); }}>
-                        Move to {STATUS_LABELS[s]}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}>
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardContent>
-            </Card>
-          ))
+        {view === "list" && (
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </div>
+
+      {/* Views */}
+      {view === "list" ? (
+        <div className="space-y-3">
+          {filtered.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">No tasks found</CardContent></Card>
+          ) : (
+            filtered.map((task) => <TaskCard key={task.id} task={task} />)
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {STATUSES.map((colStatus) => {
+            const colTasks = sortTasks(
+              tasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
+            );
+            return (
+              <div
+                key={colStatus}
+                className="rounded-lg border bg-muted/30 p-3 min-h-[200px]"
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(colStatus)}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold text-sm">{STATUS_LABELS[colStatus]}</h2>
+                  <Badge variant="secondary" className="text-xs">{colTasks.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {colTasks.map((task) => (
+                    <TaskCard key={task.id} task={task} compact />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) resetForm(); }}>
@@ -258,15 +356,25 @@ const Tasks = () => {
               <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todo">To Do</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="review">Review</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <Input placeholder="Phase (e.g. Research)" value={phase} onChange={(e) => setPhase(e.target.value)} />
+              <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">🔴 Urgent</SelectItem>
+                  <SelectItem value="high">🟠 High</SelectItem>
+                  <SelectItem value="medium">🟡 Medium</SelectItem>
+                  <SelectItem value="low">⚪ Low</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="Phase (e.g. Research)" value={phase} onChange={(e) => setPhase(e.target.value)} />
+              <Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            </div>
 
             {/* Assign Members */}
             {members.length > 0 && (
