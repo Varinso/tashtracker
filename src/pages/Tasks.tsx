@@ -10,10 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Search, Calendar, User, MoreHorizontal, X, List, Columns3 } from "lucide-react";
+import { Plus, Search, Calendar, User, MoreHorizontal, X, List, Columns3, Clock, Flag, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useSearchParams } from "react-router-dom";
 
 type TaskStatus = "todo" | "in_progress" | "review" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -29,7 +30,7 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   todo: "bg-muted text-muted-foreground",
   in_progress: "bg-primary/10 text-primary",
   review: "bg-accent text-accent-foreground",
-  done: "bg-muted text-muted-foreground opacity-70",
+  done: "bg-green-500/15 text-green-700 dark:text-green-400",
 };
 
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
@@ -52,14 +53,11 @@ const STATUSES: TaskStatus[] = ["todo", "in_progress", "review", "done"];
 
 function sortTasks(tasks: any[]) {
   return [...tasks].sort((a, b) => {
-    // Done tasks go to the bottom
     if (a.status === "done" && b.status !== "done") return 1;
     if (a.status !== "done" && b.status === "done") return -1;
-    // Then by priority (higher first)
     const pa = PRIORITY_WEIGHT[a.priority] ?? 2;
     const pb = PRIORITY_WEIGHT[b.priority] ?? 2;
     if (pb !== pa) return pb - pa;
-    // Then by created_at desc
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 }
@@ -67,6 +65,7 @@ function sortTasks(tasks: any[]) {
 const Tasks = () => {
   const { currentProject } = useProject();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>("all");
@@ -75,6 +74,7 @@ const Tasks = () => {
   const [editTask, setEditTask] = useState<any>(null);
   const [view, setView] = useState<"list" | "kanban">("list");
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   // Create/edit form state
   const [title, setTitle] = useState("");
@@ -107,10 +107,23 @@ const Tasks = () => {
 
   useEffect(() => { fetchTasks(); fetchMembers(); }, [currentProject]);
 
+  // Handle deep link from calendar: ?taskId=xxx
+  useEffect(() => {
+    const taskId = searchParams.get("taskId");
+    if (taskId && tasks.length > 0) {
+      setExpandedTaskId(taskId);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, tasks]);
+
   const currentUserRole = members.find((m) => m.user_id === user?.id)?.role;
   const isLeader = currentUserRole === "leader" || currentUserRole === "admin";
 
+  // Only leaders can create tasks
+  const canCreateTask = isLeader;
+
   const openEdit = (task: any) => {
+    if (!isLeader) return; // Only leaders can edit
     setEditTask(task);
     setTitle(task.title);
     setDescription(task.description || "");
@@ -214,63 +227,138 @@ const Tasks = () => {
     return <div className="text-center py-20 text-muted-foreground">Select a project to view tasks</div>;
   }
 
-  const TaskCard = ({ task, compact = false }: { task: any; compact?: boolean }) => (
-    <Card
-      className={`hover:shadow-md transition-shadow cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""}`}
-      draggable
-      onDragStart={() => handleDragStart(task.id)}
-      onClick={() => openEdit(task)}
-    >
-      <CardContent className={compact ? "p-3" : "p-4 flex items-center gap-4"}>
-        <div className={compact ? "" : "flex-1 min-w-0"}>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className={`font-semibold truncate ${compact ? "text-sm" : ""}`}>{task.title}</h3>
-            {!compact && (
-              <Badge variant="secondary" className={STATUS_COLORS[task.status as TaskStatus]}>
-                {STATUS_LABELS[task.status as TaskStatus]}
-              </Badge>
+  const TaskCard = ({ task, compact = false }: { task: any; compact?: boolean }) => {
+    const isExpanded = expandedTaskId === task.id && !compact;
+    const assignees = task.task_assignments?.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean) || [];
+
+    return (
+      <Card
+        className={`hover:shadow-md transition-all cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""}`}
+        draggable
+        onDragStart={() => handleDragStart(task.id)}
+        onClick={() => {
+          if (compact) {
+            openEdit(task);
+          } else {
+            setExpandedTaskId(isExpanded ? null : task.id);
+          }
+        }}
+      >
+        <CardContent className={compact ? "p-3" : "p-4"}>
+          <div className={compact ? "" : "flex items-center gap-4"}>
+            <div className={compact ? "" : "flex-1 min-w-0"}>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className={`font-semibold truncate ${compact ? "text-sm" : ""}`}>{task.title}</h3>
+                {!compact && (
+                  <Badge variant="secondary" className={STATUS_COLORS[task.status as TaskStatus]}>
+                    {STATUS_LABELS[task.status as TaskStatus]}
+                  </Badge>
+                )}
+                <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[task.priority as TaskPriority] || PRIORITY_COLORS.medium}`}>
+                  {PRIORITY_LABELS[task.priority as TaskPriority] || "Medium"}
+                </Badge>
+                {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
+              </div>
+              {!compact && task.description && !isExpanded && (
+                <p className="text-xs text-muted-foreground truncate">{task.description}</p>
+              )}
+              {!compact && !isExpanded && (
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                  {task.deadline && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(task.deadline), "MMM d")}
+                    </span>
+                  )}
+                  {assignees.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {assignees.join(", ")}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Expanded details for list view */}
+              {isExpanded && !compact && (
+                <div className="mt-3 space-y-3 border-t pt-3">
+                  {task.description && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                        <Flag className="h-3 w-3" /> Priority
+                      </p>
+                      <Badge variant="outline" className={PRIORITY_COLORS[task.priority as TaskPriority] || PRIORITY_COLORS.medium}>
+                        {PRIORITY_LABELS[task.priority as TaskPriority] || "Medium"}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> Deadline
+                      </p>
+                      <span className="text-sm">
+                        {task.deadline ? format(new Date(task.deadline), "MMM d, yyyy") : "No deadline"}
+                      </span>
+                    </div>
+                    {task.phase && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                          <Layers className="h-3 w-3" /> Phase
+                        </p>
+                        <span className="text-sm">{task.phase}</span>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                        <User className="h-3 w-3" /> Assignees
+                      </p>
+                      <span className="text-sm">
+                        {assignees.length > 0 ? assignees.join(", ") : "Unassigned"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <p className="text-xs text-muted-foreground">
+                      Created {format(new Date(task.created_at), "MMM d, yyyy")}
+                    </p>
+                    {isLeader && (
+                      <Button variant="outline" size="sm" className="ml-auto" onClick={(e) => { e.stopPropagation(); openEdit(task); }}>
+                        Edit Task
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {!compact && !isExpanded && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {STATUSES.map((s) => (
+                    <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); updateStatus(task.id, s); }}>
+                      Move to {STATUS_LABELS[s]}
+                    </DropdownMenuItem>
+                  ))}
+                  {isLeader && (
+                    <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}>
+                      Delete
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-            <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[task.priority as TaskPriority] || PRIORITY_COLORS.medium}`}>
-              {PRIORITY_LABELS[task.priority as TaskPriority] || "Medium"}
-            </Badge>
-            {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
           </div>
-          {task.description && <p className="text-xs text-muted-foreground truncate">{task.description}</p>}
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-            {task.deadline && (
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {format(new Date(task.deadline), "MMM d")}
-              </span>
-            )}
-            {task.task_assignments?.length > 0 && (
-              <span className="flex items-center gap-1">
-                <User className="h-3 w-3" />
-                {task.task_assignments.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean).join(", ")}
-              </span>
-            )}
-          </div>
-        </div>
-        {!compact && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {STATUSES.map((s) => (
-                <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); updateStatus(task.id, s); }}>
-                  Move to {STATUS_LABELS[s]}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -281,9 +369,11 @@ const Tasks = () => {
             <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4" /></ToggleGroupItem>
             <ToggleGroupItem value="kanban" aria-label="Kanban view"><Columns3 className="h-4 w-4" /></ToggleGroupItem>
           </ToggleGroup>
-          <Button onClick={() => { resetForm(); setShowCreate(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> New Task
-          </Button>
+          {canCreateTask && (
+            <Button onClick={() => { resetForm(); setShowCreate(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> New Task
+            </Button>
+          )}
         </div>
       </div>
 

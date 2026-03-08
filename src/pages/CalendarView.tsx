@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/contexts/ProjectContext";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   format,
@@ -21,15 +22,13 @@ import {
   isSameDay,
   isToday,
   eachDayOfInterval,
-  startOfDay,
-  endOfDay,
-  addHours,
 } from "date-fns";
 
 type ViewMode = "month" | "week" | "day";
 
 const CalendarView = () => {
   const { currentProject } = useProject();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -48,7 +47,7 @@ const CalendarView = () => {
     fetch();
   }, [currentProject]);
 
-  const navigate = (dir: number) => {
+  const nav = (dir: number) => {
     if (viewMode === "month") setCurrentDate((d) => dir > 0 ? addMonths(d, 1) : subMonths(d, 1));
     else if (viewMode === "week") setCurrentDate((d) => dir > 0 ? addWeeks(d, 1) : subWeeks(d, 1));
     else setCurrentDate((d) => dir > 0 ? addDays(d, 1) : subDays(d, 1));
@@ -58,6 +57,10 @@ const CalendarView = () => {
     const taskEvents = tasks.filter((t) => t.deadline && isSameDay(new Date(t.deadline), day)).map((t) => ({ ...t, type: "task" as const }));
     const meetingEvents = meetings.filter((m) => isSameDay(new Date(m.meeting_date), day)).map((m) => ({ ...m, type: "meeting" as const }));
     return [...taskEvents, ...meetingEvents];
+  };
+
+  const handleTaskClick = (taskId: string) => {
+    navigate(`/tasks?taskId=${taskId}`);
   };
 
   const headerLabel = viewMode === "month"
@@ -84,19 +87,40 @@ const CalendarView = () => {
       </div>
 
       <div className="flex items-center justify-between">
-        <Button variant="outline" size="icon" onClick={() => navigate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" onClick={() => nav(-1)}><ChevronLeft className="h-4 w-4" /></Button>
         <h2 className="text-lg font-semibold">{headerLabel}</h2>
-        <Button variant="outline" size="icon" onClick={() => navigate(1)}><ChevronRight className="h-4 w-4" /></Button>
+        <Button variant="outline" size="icon" onClick={() => nav(1)}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} />}
-      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} />}
-      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} />}
+      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
+      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
+      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
     </div>
   );
 };
 
-function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEventsForDay: (d: Date) => any[] }) {
+type ViewProps = { currentDate: Date; getEventsForDay: (d: Date) => any[]; onTaskClick: (id: string) => void };
+
+function EventItem({ e, onTaskClick }: { e: any; onTaskClick: (id: string) => void }) {
+  const isTask = e.type === "task";
+  const isDone = isTask && e.status === "done";
+  return (
+    <div
+      onClick={(ev) => { if (isTask) { ev.stopPropagation(); onTaskClick(e.id); } }}
+      className={`text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
+        isTask
+          ? isDone
+            ? "bg-green-500/15 text-green-700 dark:text-green-400"
+            : "bg-primary/10 text-primary"
+          : "bg-accent text-accent-foreground"
+      }`}
+    >
+      {e.title}
+    </div>
+  );
+}
+
+function MonthView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart);
@@ -124,18 +148,7 @@ function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEve
                 </span>
                 <div className="mt-1 space-y-1">
                   {events.slice(0, 3).map((e, i) => (
-                    <div
-                      key={i}
-                      className={`text-xs px-1.5 py-0.5 rounded truncate ${
-                        e.type === "task"
-                          ? e.status === "done"
-                            ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                            : "bg-primary/10 text-primary"
-                          : "bg-accent text-accent-foreground"
-                      }`}
-                    >
-                      {e.title}
-                    </div>
+                    <EventItem key={i} e={e} onTaskClick={onTaskClick} />
                   ))}
                   {events.length > 3 && <span className="text-xs text-muted-foreground">+{events.length - 3} more</span>}
                 </div>
@@ -148,10 +161,10 @@ function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEve
   );
 }
 
-function WeekView({ currentDate, getEventsForDay }: { currentDate: Date; getEventsForDay: (d: Date) => any[] }) {
+function WeekView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
   const weekStart = startOfWeek(currentDate);
   const days = eachDayOfInterval({ start: weekStart, end: endOfWeek(currentDate) });
-  const hours = Array.from({ length: 14 }, (_, i) => i + 7); // 7am-8pm
+  const hours = Array.from({ length: 14 }, (_, i) => i + 7);
 
   return (
     <Card>
@@ -172,9 +185,7 @@ function WeekView({ currentDate, getEventsForDay }: { currentDate: Date; getEven
                 return (
                   <div key={d.toISOString() + h} className="border-r border-b min-h-[48px] p-0.5 relative">
                     {h === 7 && dayEvents.map((e, i) => (
-                      <div key={i} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-primary/10 text-primary") : "bg-accent text-accent-foreground"}`}>
-                        {e.title}
-                      </div>
+                      <EventItem key={i} e={e} onTaskClick={onTaskClick} />
                     ))}
                   </div>
                 );
@@ -187,7 +198,7 @@ function WeekView({ currentDate, getEventsForDay }: { currentDate: Date; getEven
   );
 }
 
-function DayView({ currentDate, getEventsForDay }: { currentDate: Date; getEventsForDay: (d: Date) => any[] }) {
+function DayView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
   const events = getEventsForDay(currentDate);
   const hours = Array.from({ length: 14 }, (_, i) => i + 7);
 
@@ -199,7 +210,11 @@ function DayView({ currentDate, getEventsForDay }: { currentDate: Date; getEvent
             <div className="w-16 p-2 text-xs text-muted-foreground text-right pr-3 shrink-0">{h}:00</div>
             <div className="flex-1 min-h-[56px] p-1">
               {h === 7 && events.map((e, i) => (
-                <div key={i} className={`px-3 py-2 rounded-lg mb-1 ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}>
+                <div
+                  key={i}
+                  onClick={() => e.type === "task" && onTaskClick(e.id)}
+                  className={`px-3 py-2 rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}
+                >
                   <span className="text-sm font-medium">{e.title}</span>
                   {e.type === "task" && <Badge variant="outline" className="ml-2 text-xs">{e.status}</Badge>}
                 </div>
