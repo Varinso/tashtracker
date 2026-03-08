@@ -63,6 +63,10 @@ const CalendarView = () => {
     navigate(`/tasks?taskId=${taskId}`);
   };
 
+  const handleMeetingClick = (meetingId: string) => {
+    navigate(`/meetings?meetingId=${meetingId}`);
+  };
+
   const headerLabel = viewMode === "month"
     ? format(currentDate, "MMMM yyyy")
     : viewMode === "week"
