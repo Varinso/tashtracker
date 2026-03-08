@@ -238,7 +238,8 @@ const Tasks = () => {
         onDragStart={() => handleDragStart(task.id)}
         onClick={() => {
           if (compact) {
-            openEdit(task);
+            // In kanban: expand inline for all users, only leaders can edit via button
+            setExpandedTaskId(isExpanded ? null : task.id);
           } else {
             setExpandedTaskId(isExpanded ? null : task.id);
           }
