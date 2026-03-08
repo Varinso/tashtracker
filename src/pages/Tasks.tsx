@@ -228,7 +228,7 @@ const Tasks = () => {
   }
 
   const TaskCard = ({ task, compact = false }: { task: any; compact?: boolean }) => {
-    const isExpanded = expandedTaskId === task.id && !compact;
+    const isExpanded = expandedTaskId === task.id;
     const assignees = task.task_assignments?.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean) || [];
 
     return (
