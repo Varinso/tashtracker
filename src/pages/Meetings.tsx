@@ -26,7 +26,7 @@ const Meetings = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("meetings")
-      .select("*, profiles:created_by(display_name)")
+      .select("*, profiles!meetings_created_by_profiles_fkey(display_name)")
       .eq("project_id", currentProject.id)
       .order("meeting_date", { ascending: false });
     setMeetings(data || []);
