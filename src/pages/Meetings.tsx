@@ -36,6 +36,22 @@ const Meetings = () => {
 
   useEffect(() => { fetchMeetings(); }, [currentProject]);
 
+  // Deep-link: auto-open meeting from URL param
+  useEffect(() => {
+    const meetingId = searchParams.get("meetingId");
+    if (meetingId && meetings.length > 0) {
+      const m = meetings.find((m) => m.id === meetingId);
+      if (m) {
+        setEditMeeting(m);
+        setTitle(m.title);
+        setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
+        setNotes(m.notes || "");
+        setShowCreate(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [meetings, searchParams]);
+
   const resetForm = () => { setTitle(""); setMeetingDate(""); setNotes(""); setEditMeeting(null); };
 
   const handleSave = async (e: React.FormEvent) => {
