@@ -25,19 +25,11 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
     if (!user || !name.trim()) return;
     setLoading(true);
     try {
-      const { data: project, error } = await supabase
-        .from("projects")
-        .insert({ name: name.trim(), description: description.trim() || null, created_by: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Add creator as leader
-      await supabase.from("project_members").insert({
-        project_id: project.id,
-        user_id: user.id,
-        role: "leader" as const,
+      const { data, error } = await supabase.rpc("create_project", {
+        _name: name.trim(),
+        _description: description.trim() || null,
       });
+      if (error) throw error;
 
       toast.success("Project created!");
       refetchProjects();
