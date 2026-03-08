@@ -96,9 +96,9 @@ const CalendarView = () => {
         <Button variant="outline" size="icon" onClick={() => nav(1)}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
-      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
-      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} />}
+      {viewMode === "month" && <MonthView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
+      {viewMode === "week" && <WeekView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
+      {viewMode === "day" && <DayView currentDate={currentDate} getEventsForDay={getEventsForDay} onTaskClick={handleTaskClick} onMeetingClick={handleMeetingClick} />}
     </div>
   );
 };
