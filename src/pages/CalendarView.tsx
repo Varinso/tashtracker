@@ -190,7 +190,7 @@ function WeekView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }:
                 return (
                   <div key={d.toISOString() + h} className="border-r border-b min-h-[48px] p-0.5 relative">
                     {h === 7 && dayEvents.map((e, i) => (
-                      <EventItem key={i} e={e} onTaskClick={onTaskClick} />
+                      <EventItem key={i} e={e} onTaskClick={onTaskClick} onMeetingClick={onMeetingClick} />
                     ))}
                   </div>
                 );
