@@ -103,14 +103,15 @@ const CalendarView = () => {
   );
 };
 
-type ViewProps = { currentDate: Date; getEventsForDay: (d: Date) => any[]; onTaskClick: (id: string) => void };
+type ViewProps = { currentDate: Date; getEventsForDay: (d: Date) => any[]; onTaskClick: (id: string) => void; onMeetingClick: (id: string) => void };
 
-function EventItem({ e, onTaskClick }: { e: any; onTaskClick: (id: string) => void }) {
+function EventItem({ e, onTaskClick, onMeetingClick }: { e: any; onTaskClick: (id: string) => void; onMeetingClick: (id: string) => void }) {
   const isTask = e.type === "task";
+  const isMeeting = e.type === "meeting";
   const isDone = isTask && e.status === "done";
   return (
     <div
-      onClick={(ev) => { if (isTask) { ev.stopPropagation(); onTaskClick(e.id); } }}
+      onClick={(ev) => { ev.stopPropagation(); if (isTask) onTaskClick(e.id); else if (isMeeting) onMeetingClick(e.id); }}
       className={`text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
         isTask
           ? isDone
