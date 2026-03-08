@@ -228,7 +228,7 @@ const Tasks = () => {
   }
 
   const TaskCard = ({ task, compact = false }: { task: any; compact?: boolean }) => {
-    const isExpanded = expandedTaskId === task.id && !compact;
+    const isExpanded = expandedTaskId === task.id;
     const assignees = task.task_assignments?.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean) || [];
 
     return (
@@ -238,7 +238,8 @@ const Tasks = () => {
         onDragStart={() => handleDragStart(task.id)}
         onClick={() => {
           if (compact) {
-            openEdit(task);
+            // In kanban: expand inline for all users, only leaders can edit via button
+            setExpandedTaskId(isExpanded ? null : task.id);
           } else {
             setExpandedTaskId(isExpanded ? null : task.id);
           }
@@ -259,6 +260,50 @@ const Tasks = () => {
                 </Badge>
                 {task.phase && <Badge variant="outline" className="text-xs">{task.phase}</Badge>}
               </div>
+              {/* Compact non-expanded: show deadline & assignees */}
+              {compact && !isExpanded && (
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                  {task.deadline && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(task.deadline), "MMM d")}
+                    </span>
+                  )}
+                  {assignees.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {assignees.join(", ")}
+                    </span>
+                  )}
+                </div>
+              )}
+              {/* Compact expanded details (kanban) */}
+              {compact && isExpanded && (
+                <div className="mt-2 space-y-2 border-t pt-2">
+                  {task.description && (
+                    <p className="text-xs whitespace-pre-wrap">{task.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    {task.deadline && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(task.deadline), "MMM d")}
+                      </span>
+                    )}
+                    {assignees.length > 0 && (
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {assignees.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  {isLeader && (
+                    <Button variant="outline" size="sm" className="w-full mt-1" onClick={(e) => { e.stopPropagation(); openEdit(task); }}>
+                      Edit Task
+                    </Button>
+                  )}
+                </div>
+              )}
               {!compact && task.description && !isExpanded && (
                 <p className="text-xs text-muted-foreground truncate">{task.description}</p>
               )}
