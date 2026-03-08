@@ -224,6 +224,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string | null
+          email: string | null
           id: string
           updated_at: string
         }
@@ -231,6 +232,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id: string
           updated_at?: string
         }
@@ -238,6 +240,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id?: string
           updated_at?: string
         }
@@ -433,6 +436,13 @@ export type Database = {
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
+      }
+      lookup_profile_by_email: {
+        Args: { _email: string }
+        Returns: {
+          display_name: string
+          id: string
+        }[]
       }
     }
     Enums: {

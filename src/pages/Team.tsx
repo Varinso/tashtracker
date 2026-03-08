@@ -32,6 +32,7 @@ const Team = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [loading, setLoading] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const fetchMembers = async () => {
     if (!currentProject) return;
@@ -110,7 +111,7 @@ const Team = () => {
           <DialogHeader><DialogTitle>Invite Team Member</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              To invite a member, they need to have an account first. Then you can add them by their user ID or email lookup.
+              Enter the email of a registered user to add them to this project.
             </p>
             <Input placeholder="Member email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
             <Select value={inviteRole} onValueChange={setInviteRole}>
@@ -120,12 +121,46 @@ const Team = () => {
                 <SelectItem value="leader">Project Leader</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Note: Email-based invite requires the user to have signed up already. A full invite system with email notifications can be added later.
-            </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
-              <Button disabled>Invite (Coming Soon)</Button>
+              <Button
+                disabled={inviteLoading || !inviteEmail.trim()}
+                onClick={async () => {
+                  setInviteLoading(true);
+                  try {
+                    // Look up user by email
+                    const { data: profiles, error: lookupError } = await supabase
+                      .rpc("lookup_profile_by_email", { _email: inviteEmail.trim().toLowerCase() });
+                    if (lookupError) throw lookupError;
+                    if (!profiles || profiles.length === 0) {
+                      toast.error("No user found with that email");
+                      return;
+                    }
+                    const targetUserId = profiles[0].id;
+                    // Check if already a member
+                    const existing = members.find((m) => m.user_id === targetUserId);
+                    if (existing) {
+                      toast.error("User is already a member of this project");
+                      return;
+                    }
+                    // Add to project
+                    const { error: insertError } = await supabase
+                      .from("project_members")
+                      .insert({ project_id: currentProject!.id, user_id: targetUserId, role: inviteRole as any });
+                    if (insertError) throw insertError;
+                    toast.success("Member added successfully");
+                    setInviteEmail("");
+                    setShowInvite(false);
+                    fetchMembers();
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to add member");
+                  } finally {
+                    setInviteLoading(false);
+                  }
+                }}
+              >
+                {inviteLoading ? "Adding..." : "Add Member"}
+              </Button>
             </div>
           </div>
         </DialogContent>
