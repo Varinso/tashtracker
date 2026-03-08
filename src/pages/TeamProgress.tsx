@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
-import { CheckCircle2, Clock, FileText, User, AlertTriangle, Shield } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
