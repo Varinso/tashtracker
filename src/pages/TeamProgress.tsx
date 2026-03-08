@@ -33,34 +33,38 @@ const TeamProgress = () => {
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAll = async () => {
     if (!currentProject || !user) return;
-    const fetchAll = async () => {
-      setLoading(true);
-      const [membersRes, tasksRes, filesRes] = await Promise.all([
-        supabase
-          .from("project_members")
-          .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
-          .eq("project_id", currentProject.id),
-        supabase
-          .from("tasks")
-          .select("*, task_assignments(user_id)")
-          .eq("project_id", currentProject.id),
-        supabase
-          .from("files")
-          .select("id, uploaded_by, file_name, created_at")
-          .eq("project_id", currentProject.id),
-      ]);
-      const membersList = membersRes.data || [];
-      setMembers(membersList);
-      setTasks(tasksRes.data || []);
-      setFiles(filesRes.data || []);
+    setLoading(true);
+    const [membersRes, tasksRes, filesRes] = await Promise.all([
+      supabase
+        .from("project_members")
+        .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
+        .eq("project_id", currentProject.id),
+      supabase
+        .from("tasks")
+        .select("*, task_assignments(user_id)")
+        .eq("project_id", currentProject.id),
+      supabase
+        .from("files")
+        .select("id, uploaded_by, file_name, created_at")
+        .eq("project_id", currentProject.id),
+    ]);
+    const membersList = membersRes.data || [];
+    setMembers(membersList);
+    setTasks(tasksRes.data || []);
+    setFiles(filesRes.data || []);
 
-      const currentMember = membersList.find((m: any) => m.user_id === user.id);
-      setIsLeader(currentMember?.role === "leader" || currentMember?.role === "admin");
-      setLoading(false);
-    };
+    const currentMember = membersList.find((m: any) => m.user_id === user.id);
+    setIsLeader(currentMember?.role === "leader" || currentMember?.role === "admin");
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchAll();
+    // Set up interval to refresh data every 30 seconds
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
   }, [currentProject, user]);
 
   if (!currentProject) {
