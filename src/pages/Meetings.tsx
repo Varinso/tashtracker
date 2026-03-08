@@ -15,6 +15,7 @@ import { useSearchParams } from "react-router-dom";
 const Meetings = () => {
   const { currentProject } = useProject();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editMeeting, setEditMeeting] = useState<any>(null);
