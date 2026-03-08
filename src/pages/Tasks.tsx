@@ -276,7 +276,7 @@ const Tasks = () => {
                     </span>
                   )}
                 </div>
-              )
+              )}
               {/* Compact expanded details (kanban) */}
               {compact && isExpanded && (
                 <div className="mt-2 space-y-2 border-t pt-2">
