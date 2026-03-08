@@ -10,6 +10,7 @@ import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
 import { Plus, Calendar, FileText, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 
 const Meetings = () => {
   const { currentProject } = useProject();
