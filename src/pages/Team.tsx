@@ -32,6 +32,7 @@ const Team = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [loading, setLoading] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const fetchMembers = async () => {
     if (!currentProject) return;
