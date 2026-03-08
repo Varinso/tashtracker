@@ -223,7 +223,12 @@ const Tasks = () => {
 
       // Sync assignments
       if (isLeader || !editTask) {
-        await supabase.from("task_assignments").delete().eq("task_id", taskId);
+        const { error: clearAssignmentsError } = await supabase
+          .from("task_assignments")
+          .delete()
+          .eq("task_id", taskId);
+        if (clearAssignmentsError) throw clearAssignmentsError;
+
         if (assignedUserIds.length > 0) {
           const { error: assignError } = await supabase.from("task_assignments").insert(
             assignedUserIds.map((uid) => ({ task_id: taskId, user_id: uid }))
