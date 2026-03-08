@@ -52,7 +52,7 @@ const Tasks = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("tasks")
-      .select("*, task_assignments(user_id, profiles(display_name))")
+      .select("*, task_assignments(user_id, profiles!task_assignments_user_id_profiles_fkey(display_name))")
       .eq("project_id", currentProject.id)
       .order("created_at", { ascending: false });
     setTasks(data || []);
@@ -62,7 +62,7 @@ const Tasks = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("project_members")
-      .select("*, profiles(display_name)")
+      .select("*, profiles!project_members_user_id_profiles_fkey(display_name)")
       .eq("project_id", currentProject.id);
     setMembers(data || []);
   };

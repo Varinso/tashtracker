@@ -37,7 +37,7 @@ const Team = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("project_members")
-      .select("*, profiles(display_name, avatar_url)")
+      .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
       .eq("project_id", currentProject.id)
       .order("joined_at");
     setMembers(data || []);

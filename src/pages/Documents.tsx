@@ -38,7 +38,7 @@ const Documents = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("files")
-      .select("*, profiles:uploaded_by(display_name)")
+      .select("*, profiles!files_uploaded_by_profiles_fkey(display_name)")
       .eq("project_id", currentProject.id)
       .order("created_at", { ascending: false });
     setFiles(data || []);

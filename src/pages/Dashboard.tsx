@@ -25,8 +25,8 @@ const Dashboard = () => {
     const fetchData = async () => {
       const [tasksRes, membersRes, activityRes] = await Promise.all([
         supabase.from("tasks").select("*").eq("project_id", currentProject.id),
-        supabase.from("project_members").select("*, profiles(display_name, avatar_url)").eq("project_id", currentProject.id),
-        supabase.from("activity_log").select("*, profiles(display_name)").eq("project_id", currentProject.id).order("created_at", { ascending: false }).limit(10),
+        supabase.from("project_members").select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)").eq("project_id", currentProject.id),
+        supabase.from("activity_log").select("*, profiles!activity_log_user_id_profiles_fkey(display_name)").eq("project_id", currentProject.id).order("created_at", { ascending: false }).limit(10),
       ]);
       setTasks(tasksRes.data || []);
       setMembers(membersRes.data || []);
