@@ -127,7 +127,11 @@ function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEve
                     <div
                       key={i}
                       className={`text-xs px-1.5 py-0.5 rounded truncate ${
-                        e.type === "task" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"
+                        e.type === "task"
+                          ? e.status === "done"
+                            ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                            : "bg-primary/10 text-primary"
+                          : "bg-accent text-accent-foreground"
                       }`}
                     >
                       {e.title}
