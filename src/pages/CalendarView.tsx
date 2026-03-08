@@ -172,7 +172,7 @@ function WeekView({ currentDate, getEventsForDay }: { currentDate: Date; getEven
                 return (
                   <div key={d.toISOString() + h} className="border-r border-b min-h-[48px] p-0.5 relative">
                     {h === 7 && dayEvents.map((e, i) => (
-                      <div key={i} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate ${e.type === "task" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"}`}>
+                      <div key={i} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-primary/10 text-primary") : "bg-accent text-accent-foreground"}`}>
                         {e.title}
                       </div>
                     ))}
