@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,26 +86,80 @@ const Tasks = () => {
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchTasks = async () => {
-    if (!currentProject) return;
+  const fetchTasks = useCallback(async () => {
+    if (!currentProject) {
+      setTasks([]);
+      return;
+    }
+
     const { data } = await supabase
       .from("tasks")
       .select("*, task_assignments(user_id, profiles!task_assignments_user_id_profiles_fkey(display_name))")
       .eq("project_id", currentProject.id)
       .order("created_at", { ascending: false });
-    setTasks(data || []);
-  };
 
-  const fetchMembers = async () => {
-    if (!currentProject) return;
+    setTasks(data || []);
+  }, [currentProject]);
+
+  const fetchMembers = useCallback(async () => {
+    if (!currentProject) {
+      setMembers([]);
+      return;
+    }
+
     const { data } = await supabase
       .from("project_members")
       .select("*, profiles!project_members_user_id_profiles_fkey(display_name)")
       .eq("project_id", currentProject.id);
-    setMembers(data || []);
-  };
 
-  useEffect(() => { fetchTasks(); fetchMembers(); }, [currentProject]);
+    setMembers(data || []);
+  }, [currentProject]);
+
+  useEffect(() => {
+    fetchTasks();
+    fetchMembers();
+  }, [fetchTasks, fetchMembers]);
+
+  useEffect(() => {
+    if (!currentProject) return;
+
+    const channel = supabase
+      .channel(`tasks-live-${currentProject.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tasks",
+          filter: `project_id=eq.${currentProject.id}`,
+        },
+        () => fetchTasks()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "project_members",
+          filter: `project_id=eq.${currentProject.id}`,
+        },
+        () => fetchMembers()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "task_assignments",
+        },
+        () => fetchTasks()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentProject, fetchMembers, fetchTasks]);
 
   // Handle deep link from calendar: ?taskId=xxx
   useEffect(() => {
