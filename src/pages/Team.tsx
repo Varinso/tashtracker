@@ -93,12 +93,24 @@ const Team = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold">{(m.profiles as any)?.display_name || "Unknown"}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge className={ROLE_COLORS[m.role]}>
-                          <RoleIcon className="h-3 w-3 mr-1" />
-                          {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
-                        </Badge>
-                      </div>
+                      {isLeader && m.user_id !== user?.id && editingMember === m.id ? (
+                        <Select defaultValue={m.role} onValueChange={(val) => updateRole(m.id, val)}>
+                          <SelectTrigger className="h-7 w-[130px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Member</SelectItem>
+                            <SelectItem value="leader">Leader</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={() => isLeader && m.user_id !== user?.id && setEditingMember(m.id)}>
+                          <Badge className={ROLE_COLORS[m.role]}>
+                            <RoleIcon className="h-3 w-3 mr-1" />
+                            {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+                          </Badge>
+                        </div>
+                      )}
                       <p className="text-xs text-muted-foreground mt-1">
                         Joined {format(new Date(m.joined_at), "MMM d, yyyy")}
                       </p>
