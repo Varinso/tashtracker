@@ -166,7 +166,7 @@ function MonthView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }
   );
 }
 
-function WeekView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function WeekView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const weekStart = startOfWeek(currentDate);
   const days = eachDayOfInterval({ start: weekStart, end: endOfWeek(currentDate) });
   const hours = Array.from({ length: 14 }, (_, i) => i + 7);
