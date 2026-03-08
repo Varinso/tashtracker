@@ -127,7 +127,11 @@ function MonthView({ currentDate, getEventsForDay }: { currentDate: Date; getEve
                     <div
                       key={i}
                       className={`text-xs px-1.5 py-0.5 rounded truncate ${
-                        e.type === "task" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"
+                        e.type === "task"
+                          ? e.status === "done"
+                            ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                            : "bg-primary/10 text-primary"
+                          : "bg-accent text-accent-foreground"
                       }`}
                     >
                       {e.title}
@@ -168,7 +172,7 @@ function WeekView({ currentDate, getEventsForDay }: { currentDate: Date; getEven
                 return (
                   <div key={d.toISOString() + h} className="border-r border-b min-h-[48px] p-0.5 relative">
                     {h === 7 && dayEvents.map((e, i) => (
-                      <div key={i} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate ${e.type === "task" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"}`}>
+                      <div key={i} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-primary/10 text-primary") : "bg-accent text-accent-foreground"}`}>
                         {e.title}
                       </div>
                     ))}
@@ -195,7 +199,7 @@ function DayView({ currentDate, getEventsForDay }: { currentDate: Date; getEvent
             <div className="w-16 p-2 text-xs text-muted-foreground text-right pr-3 shrink-0">{h}:00</div>
             <div className="flex-1 min-h-[56px] p-1">
               {h === 7 && events.map((e, i) => (
-                <div key={i} className={`px-3 py-2 rounded-lg mb-1 ${e.type === "task" ? "bg-primary/10 border border-primary/20" : "bg-accent border border-accent-foreground/10"}`}>
+                <div key={i} className={`px-3 py-2 rounded-lg mb-1 ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}>
                   <span className="text-sm font-medium">{e.title}</span>
                   {e.type === "task" && <Badge variant="outline" className="ml-2 text-xs">{e.status}</Badge>}
                 </div>
