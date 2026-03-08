@@ -199,7 +199,7 @@ function DayView({ currentDate, getEventsForDay }: { currentDate: Date; getEvent
             <div className="w-16 p-2 text-xs text-muted-foreground text-right pr-3 shrink-0">{h}:00</div>
             <div className="flex-1 min-h-[56px] p-1">
               {h === 7 && events.map((e, i) => (
-                <div key={i} className={`px-3 py-2 rounded-lg mb-1 ${e.type === "task" ? "bg-primary/10 border border-primary/20" : "bg-accent border border-accent-foreground/10"}`}>
+                <div key={i} className={`px-3 py-2 rounded-lg mb-1 ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}>
                   <span className="text-sm font-medium">{e.title}</span>
                   {e.type === "task" && <Badge variant="outline" className="ml-2 text-xs">{e.status}</Badge>}
                 </div>
