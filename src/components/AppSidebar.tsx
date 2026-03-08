@@ -43,6 +43,7 @@ const navItems = [
   { title: "Documents", url: "/documents", icon: FolderOpen },
   { title: "Meetings", url: "/meetings", icon: MessageSquare },
   { title: "Team", url: "/team", icon: Users },
+  { title: "Team Progress", url: "/team-progress", icon: BarChart3 },
 ];
 
 export function AppSidebar() {
