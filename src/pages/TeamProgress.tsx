@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
-import { CheckCircle2, Clock, FileText, User, AlertTriangle, Shield } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield } from "lucide-react";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -26,15 +25,22 @@ const STATUS_COLORS: Record<string, string> = {
 const TeamProgress = () => {
   const { currentProject } = useProject();
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [members, setMembers] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = async () => {
-    if (!currentProject || !user) return;
+  const fetchAll = useCallback(async () => {
+    if (!currentProject || !user) {
+      setMembers([]);
+      setTasks([]);
+      setFiles([]);
+      setIsLeader(false);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const [membersRes, tasksRes, filesRes] = await Promise.all([
       supabase
@@ -50,6 +56,7 @@ const TeamProgress = () => {
         .select("id, uploaded_by, file_name, created_at")
         .eq("project_id", currentProject.id),
     ]);
+
     const membersList = membersRes.data || [];
     setMembers(membersList);
     setTasks(tasksRes.data || []);
@@ -58,14 +65,64 @@ const TeamProgress = () => {
     const currentMember = membersList.find((m: any) => m.user_id === user.id);
     setIsLeader(currentMember?.role === "leader" || currentMember?.role === "admin");
     setLoading(false);
-  };
+  }, [currentProject, user]);
 
   useEffect(() => {
     fetchAll();
-    // Set up interval to refresh data every 30 seconds
     const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
-  }, [currentProject, user]);
+  }, [fetchAll]);
+
+  useEffect(() => {
+    if (!currentProject) return;
+
+    const channel = supabase
+      .channel(`team-progress-live-${currentProject.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "project_members",
+          filter: `project_id=eq.${currentProject.id}`,
+        },
+        () => fetchAll()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tasks",
+          filter: `project_id=eq.${currentProject.id}`,
+        },
+        () => fetchAll()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "files",
+          filter: `project_id=eq.${currentProject.id}`,
+        },
+        () => fetchAll()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "task_assignments",
+        },
+        () => fetchAll()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentProject, fetchAll]);
 
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project first</div>;
@@ -139,7 +196,6 @@ const TeamProgress = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Progress bar */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Task completion</span>
@@ -148,7 +204,6 @@ const TeamProgress = () => {
                   <Progress value={progress} className="h-2" />
                 </div>
 
-                {/* Task breakdown */}
                 {memberTasks.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tasks</p>
