@@ -203,7 +203,7 @@ function WeekView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }:
   );
 }
 
-function DayView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function DayView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const events = getEventsForDay(currentDate);
   const hours = Array.from({ length: 14 }, (_, i) => i + 7);
 
