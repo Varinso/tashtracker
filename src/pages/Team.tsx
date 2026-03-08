@@ -56,6 +56,15 @@ const Team = () => {
     else { toast.success("Member removed"); fetchMembers(); }
   };
 
+  const updateRole = async (memberId: string, newRole: string) => {
+    const { error } = await supabase
+      .from("project_members")
+      .update({ role: newRole as any })
+      .eq("id", memberId);
+    if (error) toast.error(error.message);
+    else { toast.success("Role updated"); setEditingMember(null); fetchMembers(); }
+  };
+
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project to manage team</div>;
   }
