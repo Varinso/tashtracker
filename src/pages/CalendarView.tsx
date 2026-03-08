@@ -125,7 +125,7 @@ function EventItem({ e, onTaskClick, onMeetingClick }: { e: any; onTaskClick: (i
   );
 }
 
-function MonthView({ currentDate, getEventsForDay, onTaskClick }: ViewProps) {
+function MonthView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: ViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart);
