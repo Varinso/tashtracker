@@ -153,7 +153,7 @@ function MonthView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }
                 </span>
                 <div className="mt-1 space-y-1">
                   {events.slice(0, 3).map((e, i) => (
-                    <EventItem key={i} e={e} onTaskClick={onTaskClick} />
+                    <EventItem key={i} e={e} onTaskClick={onTaskClick} onMeetingClick={onMeetingClick} />
                   ))}
                   {events.length > 3 && <span className="text-xs text-muted-foreground">+{events.length - 3} more</span>}
                 </div>
