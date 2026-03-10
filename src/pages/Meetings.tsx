@@ -9,12 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Calendar, Trash2, Edit, Video, Clock, ExternalLink, Copy } from "lucide-react";
+import { Plus, Calendar, Trash2, Edit, Video, Clock, ExternalLink, Copy, Link } from "lucide-react";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
-
-const generateMeetLink = (meetingId: string) =>
-  `https://meet.jit.si/tashtracker-${meetingId.replace(/-/g, "").slice(0, 12)}`;
 
 const getMeetingStatus = (meetingDate: string): "upcoming" | "live" | "ended" => {
   const diffMs = new Date(meetingDate).getTime() - Date.now();
@@ -84,6 +81,7 @@ const Meetings = () => {
   const [editMeeting, setEditMeeting] = useState<any>(null);
   const [title, setTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
+  const [meetLink, setMeetLink] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -107,6 +105,7 @@ const Meetings = () => {
         setEditMeeting(m);
         setTitle(m.title);
         setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
+        setMeetLink(m.meet_link || "");
         setNotes(m.notes || "");
         setShowCreate(true);
         setSearchParams({}, { replace: true });
@@ -114,7 +113,7 @@ const Meetings = () => {
     }
   }, [meetings, searchParams]);
 
-  const resetForm = () => { setTitle(""); setMeetingDate(""); setNotes(""); setEditMeeting(null); };
+  const resetForm = () => { setTitle(""); setMeetingDate(""); setMeetLink(""); setNotes(""); setEditMeeting(null); };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,10 +123,11 @@ const Meetings = () => {
       const payload = {
         title: title.trim(),
         meeting_date: meetingDate,
+        meet_link: meetLink.trim() || null,
         notes: notes.trim() || null,
         project_id: currentProject.id,
         created_by: user.id,
-      };
+      } as any;
       if (editMeeting) {
         const { error } = await supabase.from("meetings").update(payload).eq("id", editMeeting.id);
         if (error) throw error;
@@ -135,7 +135,7 @@ const Meetings = () => {
       } else {
         const { error } = await supabase.from("meetings").insert(payload);
         if (error) throw error;
-        toast.success("Meeting created! A video meeting link has been generated.");
+        toast.success("Meeting created!");
       }
       fetchMeetings();
       setShowCreate(false);
@@ -157,6 +157,7 @@ const Meetings = () => {
     setEditMeeting(m);
     setTitle(m.title);
     setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
+    setMeetLink(m.meet_link || "");
     setNotes(m.notes || "");
     setShowCreate(true);
   };
@@ -184,7 +185,7 @@ const Meetings = () => {
           <Card><CardContent className="py-12 text-center text-muted-foreground">No meetings scheduled</CardContent></Card>
         ) : (
           meetings.map((m) => {
-            const meetLink = generateMeetLink(m.id);
+            const link = m.meet_link || "";
             const status = getMeetingStatus(m.meeting_date);
             const isCreator = m.created_by === user?.id;
 
@@ -223,27 +224,33 @@ const Meetings = () => {
                         {/* Timer + meeting link + join */}
                         <div className="flex items-center justify-between mt-3 pt-3 border-t flex-wrap gap-2">
                           <MeetingTimer meetingDate={m.meeting_date} />
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs text-muted-foreground hidden sm:inline-flex"
-                              onClick={() => copyLink(meetLink)}
-                              title="Copy meeting link"
-                            >
-                              <Copy className="h-3 w-3 mr-1" />
-                              Copy Link
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={status === "live" ? "default" : "outline"}
-                              className={status === "live" ? "bg-green-600 hover:bg-green-700" : ""}
-                              onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
-                            >
-                              <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                              Join Meeting
-                            </Button>
-                          </div>
+                          {link ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs text-muted-foreground hidden sm:inline-flex"
+                                onClick={() => copyLink(link)}
+                                title="Copy meeting link"
+                              >
+                                <Copy className="h-3 w-3 mr-1" />
+                                Copy Link
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={status === "live" ? "default" : "outline"}
+                                className={status === "live" ? "bg-green-600 hover:bg-green-700" : ""}
+                                onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                                Join Meeting
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Link className="h-3 w-3" /> No meeting link provided
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -289,28 +296,22 @@ const Meetings = () => {
               <Input type="datetime-local" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} required />
             </div>
             <div>
+              <label className="text-sm font-medium mb-1.5 block">Meeting Link</label>
+              <Input
+                placeholder="Paste Google Meet or video call link"
+                value={meetLink}
+                onChange={(e) => setMeetLink(e.target.value)}
+                type="url"
+              />
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Video className="h-3 w-3" />
+                Paste a Google Meet, Zoom, or any video call link
+              </p>
+            </div>
+            <div>
               <label className="text-sm font-medium mb-1.5 block">Notes</label>
               <Textarea placeholder="Meeting agenda or notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
             </div>
-            {!editMeeting && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Video className="h-3.5 w-3.5" />
-                A video meeting link will be automatically generated
-              </p>
-            )}
-            {editMeeting && (
-              <div className="text-xs text-muted-foreground">
-                <span className="font-medium">Meeting link:</span>{" "}
-                <a
-                  href={generateMeetLink(editMeeting.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                >
-                  {generateMeetLink(editMeeting.id)}
-                </a>
-              </div>
-            )}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
               <Button type="submit" disabled={loading}>
