@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { useProject } from "@/contexts/ProjectContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, CheckCircle2, Clock, AlertTriangle, Users, FolderOpen } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertTriangle, Users, FolderOpen, Trash2 } from "lucide-react";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -19,6 +21,26 @@ const Dashboard = () => {
   const [members, setMembers] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isCreator = currentProject?.created_by === user?.id;
+  const currentUserRole = members.find((m) => m.user_id === user?.id)?.role;
+  const isLeader = currentUserRole === "leader" || currentUserRole === "admin";
+
+  const handleDeleteProject = async () => {
+    if (!currentProject) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("projects").delete().eq("id", currentProject.id);
+      if (error) throw error;
+      toast.success("Project deleted");
+      refetchProjects();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentProject) return;
@@ -85,9 +107,38 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold tracking-tight">{currentProject?.name || "Dashboard"}</h1>
           <p className="text-muted-foreground mt-1">{currentProject?.description}</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> New Project
-        </Button>
+        <div className="flex items-center gap-2">
+          {isLeader && isCreator && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete Project
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete "{currentProject?.name}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the project, all its tasks, documents, meetings, and team data. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteProject}
+                    disabled={deleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting ? "Deleting..." : "Delete Project"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Button onClick={() => setShowCreate(true)} size="sm">
+            <Plus className="h-4 w-4 mr-1" /> New Project
+          </Button>
+        </div>
       </div>
 
       {/* Stats row */}

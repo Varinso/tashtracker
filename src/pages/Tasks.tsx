@@ -365,19 +365,35 @@ const Tasks = () => {
               </div>
               {/* Compact non-expanded: show deadline & assignees */}
               {compact && !isExpanded && (
-                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
-                  {task.deadline && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {format(new Date(task.deadline), "MMM d")}
-                    </span>
-                  )}
-                  {assignees.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      {assignees.join(", ")}
-                    </span>
-                  )}
+                <div className="space-y-1.5 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {task.deadline && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(task.deadline), "MMM d")}
+                      </span>
+                    )}
+                    {assignees.length > 0 && (
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {assignees.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                    {STATUSES.map((s) => (
+                      <Button
+                        key={s}
+                        variant={task.status === s ? "default" : "outline"}
+                        size="sm"
+                        className={`h-6 text-[10px] px-1.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
+                        onClick={() => updateStatus(task.id, s)}
+                        disabled={task.status === s}
+                      >
+                        {STATUS_LABELS[s]}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               )}
               {/* Compact expanded details (kanban) */}
@@ -424,6 +440,23 @@ const Tasks = () => {
                       {assignees.join(", ")}
                     </span>
                   )}
+                </div>
+              )}
+              {/* Quick status buttons */}
+              {!compact && !isExpanded && (
+                <div className="flex flex-wrap gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+                  {STATUSES.map((s) => (
+                    <Button
+                      key={s}
+                      variant={task.status === s ? "default" : "outline"}
+                      size="sm"
+                      className={`h-7 text-xs px-2.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
+                      onClick={() => updateStatus(task.id, s)}
+                      disabled={task.status === s}
+                    >
+                      {STATUS_LABELS[s]}
+                    </Button>
+                  ))}
                 </div>
               )}
 
