@@ -237,6 +237,33 @@ const Tasks = () => {
         }
       }
 
+      // Log activity
+      await supabase.from("activity_log").insert({
+        project_id: currentProject.id,
+        user_id: user.id,
+        entity_type: "task",
+        entity_id: taskId,
+        action: editTask ? `updated task "${title.trim()}"` : `created task "${title.trim()}"`,
+      });
+
+      // Send notifications to assigned members
+      if (assignedUserIds.length > 0) {
+        const notifs = assignedUserIds
+          .filter((uid) => uid !== user.id)
+          .map((uid) => ({
+            user_id: uid,
+            project_id: currentProject.id,
+            title: editTask ? "Task Updated" : "New Task Assigned",
+            message: `You have been assigned to "${title.trim()}"`,
+            type: "task",
+            entity_type: "task",
+            entity_id: taskId,
+          }));
+        if (notifs.length > 0) {
+          await supabase.from("notifications").insert(notifs);
+        }
+      }
+
       toast.success(editTask ? "Task updated!" : "Task created!");
       fetchTasks();
       setShowCreate(false);
@@ -255,9 +282,21 @@ const Tasks = () => {
   };
 
   const updateStatus = async (id: string, newStatus: TaskStatus) => {
+    const task = tasks.find((t) => t.id === id);
     const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", id);
-    if (error) toast.error(error.message);
-    else fetchTasks();
+    if (error) { toast.error(error.message); return; }
+
+    // Log activity for status change
+    if (user && currentProject) {
+      await supabase.from("activity_log").insert({
+        project_id: currentProject.id,
+        user_id: user.id,
+        entity_type: "task",
+        entity_id: id,
+        action: `moved "${task?.title}" to ${STATUS_LABELS[newStatus]}`,
+      });
+    }
+    fetchTasks();
   };
 
   const toggleAssignment = (userId: string) => {
@@ -266,8 +305,13 @@ const Tasks = () => {
     );
   };
 
+  // Filter tasks: members only see assigned tasks, leaders see all
+  const visibleTasks = isLeader
+    ? tasks
+    : tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === user?.id));
+
   const filtered = sortTasks(
-    tasks
+    visibleTasks
       .filter((t) => filter === "all" || t.status === filter)
       .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
   );
@@ -513,7 +557,7 @@ const Tasks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {STATUSES.map((colStatus) => {
             const colTasks = sortTasks(
-              tasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
+              visibleTasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
             );
             return (
               <div

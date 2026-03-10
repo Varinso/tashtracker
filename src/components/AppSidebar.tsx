@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -9,8 +10,10 @@ import {
   Plus,
   LogOut,
   ChevronDown,
-  BarChart3 } from
+  BarChart3,
+  Bell } from
 "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,7 +46,8 @@ const navItems = [
 { title: "Documents", url: "/documents", icon: FolderOpen },
 { title: "Meetings", url: "/meetings", icon: MessageSquare },
 { title: "Team", url: "/team", icon: Users },
-{ title: "Team Progress", url: "/team-progress", icon: BarChart3 }];
+{ title: "Team Progress", url: "/team-progress", icon: BarChart3 },
+{ title: "Notifications", url: "/notifications", icon: Bell }];
 
 
 export function AppSidebar() {
@@ -52,6 +56,26 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const { projects, currentProject, setCurrentProject } = useProject();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("read", false);
+      setUnreadCount(count || 0);
+    };
+    fetchUnread();
+
+    const channel = supabase
+      .channel(`sidebar-notif-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnread())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   return (
     <Sidebar collapsible="icon">
@@ -114,7 +138,16 @@ export function AppSidebar() {
                     activeClassName="bg-accent text-accent-foreground font-medium">
                     
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && (
+                        <span className="flex-1 flex items-center justify-between">
+                          {item.title}
+                          {item.title === "Notifications" && unreadCount > 0 && (
+                            <span className="ml-auto bg-destructive text-destructive-foreground text-xs rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -15,6 +15,7 @@ import Documents from "./pages/Documents";
 import Meetings from "./pages/Meetings";
 import Team from "./pages/Team";
 import TeamProgress from "./pages/TeamProgress";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
                 <Route path="/meetings" element={<Meetings />} />
                 <Route path="/team" element={<Team />} />
                 <Route path="/team-progress" element={<TeamProgress />} />
+                <Route path="/notifications" element={<Notifications />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
