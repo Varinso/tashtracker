@@ -266,8 +266,13 @@ const Tasks = () => {
     );
   };
 
+  // Filter tasks: members only see assigned tasks, leaders see all
+  const visibleTasks = isLeader
+    ? tasks
+    : tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === user?.id));
+
   const filtered = sortTasks(
-    tasks
+    visibleTasks
       .filter((t) => filter === "all" || t.status === filter)
       .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
   );
