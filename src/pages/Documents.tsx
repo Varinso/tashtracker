@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Search, FileText, File, Image, Sheet, Trash2, Download, ChevronDown, ChevronRight, FolderOpen, ListChecks, ClipboardList } from "lucide-react";
+import { Upload, Search, FileText, File, Image, Sheet, Trash2, Download, ChevronDown, ChevronRight, FolderOpen, ListChecks, ClipboardList, User } from "lucide-react";
 import { format } from "date-fns";
 
 const FILE_ICONS: Record<string, React.ComponentType<any>> = {
@@ -149,9 +149,11 @@ const Documents = () => {
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-sm truncate">{file.file_name}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {(file.profiles as any)?.display_name || "Unknown"} · {format(new Date(file.created_at), "MMM d, yyyy")}
-              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-xs font-medium text-foreground">{(file.profiles as any)?.display_name || "Unknown"}</span>
+                <span className="text-xs text-muted-foreground">· {format(new Date(file.created_at), "MMM d, yyyy")}</span>
+              </div>
               {file.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{file.description}</p>}
               {file.tags && (
                 <div className="flex flex-wrap gap-1 mt-2">
