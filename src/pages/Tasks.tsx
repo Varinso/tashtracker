@@ -282,9 +282,21 @@ const Tasks = () => {
   };
 
   const updateStatus = async (id: string, newStatus: TaskStatus) => {
+    const task = tasks.find((t) => t.id === id);
     const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", id);
-    if (error) toast.error(error.message);
-    else fetchTasks();
+    if (error) { toast.error(error.message); return; }
+
+    // Log activity for status change
+    if (user && currentProject) {
+      await supabase.from("activity_log").insert({
+        project_id: currentProject.id,
+        user_id: user.id,
+        entity_type: "task",
+        entity_id: id,
+        action: `moved "${task?.title}" to ${STATUS_LABELS[newStatus]}`,
+      });
+    }
+    fetchTasks();
   };
 
   const toggleAssignment = (userId: string) => {
