@@ -1,16 +1,79 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Calendar, FileText, Trash2 } from "lucide-react";
+import { Plus, Calendar, Trash2, Edit, Video, Clock, ExternalLink, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
+
+const generateMeetLink = (meetingId: string) =>
+  `https://meet.jit.si/tashtracker-${meetingId.replace(/-/g, "").slice(0, 12)}`;
+
+const getMeetingStatus = (meetingDate: string): "upcoming" | "live" | "ended" => {
+  const diffMs = new Date(meetingDate).getTime() - Date.now();
+  if (diffMs > 0) return "upcoming";
+  if (diffMs > -3600000) return "live";
+  return "ended";
+};
+
+const MeetingTimer = ({ meetingDate }: { meetingDate: string }) => {
+  const [display, setDisplay] = useState("");
+  const [status, setStatus] = useState<"upcoming" | "live" | "ended">("upcoming");
+
+  useEffect(() => {
+    const update = () => {
+      const diffMs = new Date(meetingDate).getTime() - Date.now();
+      if (diffMs > 0) {
+        setStatus("upcoming");
+        const d = Math.floor(diffMs / 86400000);
+        const h = Math.floor((diffMs % 86400000) / 3600000);
+        const m = Math.floor((diffMs % 3600000) / 60000);
+        const s = Math.floor((diffMs % 60000) / 1000);
+        const parts: string[] = [];
+        if (d > 0) parts.push(`${d}d`);
+        if (h > 0) parts.push(`${h}h`);
+        if (m > 0) parts.push(`${m}m`);
+        parts.push(`${s}s`);
+        setDisplay(parts.join(" "));
+      } else if (diffMs > -3600000) {
+        setStatus("live");
+        setDisplay("Meeting in progress");
+      } else {
+        setStatus("ended");
+        setDisplay("Meeting ended");
+      }
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [meetingDate]);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Clock className="h-3.5 w-3.5" />
+      {status === "upcoming" && (
+        <span className="text-sm font-mono text-orange-600 dark:text-orange-400">
+          Starts in {display}
+        </span>
+      )}
+      {status === "live" && (
+        <Badge variant="default" className="bg-green-600 animate-pulse">
+          {display}
+        </Badge>
+      )}
+      {status === "ended" && (
+        <span className="text-sm text-muted-foreground">{display}</span>
+      )}
+    </div>
+  );
+};
 
 const Meetings = () => {
   const { currentProject } = useProject();
@@ -30,18 +93,17 @@ const Meetings = () => {
       .from("meetings")
       .select("*, profiles!meetings_created_by_profiles_fkey(display_name)")
       .eq("project_id", currentProject.id)
-      .order("meeting_date", { ascending: false });
+      .order("meeting_date", { ascending: true });
     setMeetings(data || []);
   };
 
   useEffect(() => { fetchMeetings(); }, [currentProject]);
 
-  // Deep-link: auto-open meeting from URL param
   useEffect(() => {
     const meetingId = searchParams.get("meetingId");
     if (meetingId && meetings.length > 0) {
-      const m = meetings.find((m) => m.id === meetingId);
-      if (m) {
+      const m = meetings.find((mt) => mt.id === meetingId);
+      if (m && m.created_by === user?.id) {
         setEditMeeting(m);
         setTitle(m.title);
         setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
@@ -59,7 +121,7 @@ const Meetings = () => {
     if (!currentProject || !user) return;
     setLoading(true);
     try {
-      const data = {
+      const payload = {
         title: title.trim(),
         meeting_date: meetingDate,
         notes: notes.trim() || null,
@@ -67,13 +129,13 @@ const Meetings = () => {
         created_by: user.id,
       };
       if (editMeeting) {
-        const { error } = await supabase.from("meetings").update(data).eq("id", editMeeting.id);
+        const { error } = await supabase.from("meetings").update(payload).eq("id", editMeeting.id);
         if (error) throw error;
         toast.success("Meeting updated!");
       } else {
-        const { error } = await supabase.from("meetings").insert(data);
+        const { error } = await supabase.from("meetings").insert(payload);
         if (error) throw error;
-        toast.success("Meeting created!");
+        toast.success("Meeting created! A video meeting link has been generated.");
       }
       fetchMeetings();
       setShowCreate(false);
@@ -91,6 +153,19 @@ const Meetings = () => {
     else { toast.success("Meeting deleted"); fetchMeetings(); }
   };
 
+  const openEdit = (m: any) => {
+    setEditMeeting(m);
+    setTitle(m.title);
+    setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
+    setNotes(m.notes || "");
+    setShowCreate(true);
+  };
+
+  const copyLink = (link: string) => {
+    navigator.clipboard.writeText(link);
+    toast.success("Meeting link copied!");
+  };
+
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project to view meetings</div>;
   }
@@ -98,7 +173,7 @@ const Meetings = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Meeting Notes</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Meetings</h1>
         <Button onClick={() => { resetForm(); setShowCreate(true); }}>
           <Plus className="h-4 w-4 mr-1" /> New Meeting
         </Button>
@@ -106,52 +181,141 @@ const Meetings = () => {
 
       <div className="space-y-4">
         {meetings.length === 0 ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground">No meetings yet</CardContent></Card>
+          <Card><CardContent className="py-12 text-center text-muted-foreground">No meetings scheduled</CardContent></Card>
         ) : (
-          meetings.map((m) => (
-            <Card key={m.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => {
-              setEditMeeting(m);
-              setTitle(m.title);
-              setMeetingDate(format(new Date(m.meeting_date), "yyyy-MM-dd'T'HH:mm"));
-              setNotes(m.notes || "");
-              setShowCreate(true);
-            }}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center shrink-0">
-                      <FileText className="h-5 w-5 text-accent-foreground" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{m.title}</h3>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(m.meeting_date), "MMM d, yyyy 'at' h:mm a")}
-                        <span>· {(m.profiles as any)?.display_name}</span>
+          meetings.map((m) => {
+            const meetLink = generateMeetLink(m.id);
+            const status = getMeetingStatus(m.meeting_date);
+            const isCreator = m.created_by === user?.id;
+
+            return (
+              <Card key={m.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center shrink-0">
+                        <Video className="h-5 w-5 text-accent-foreground" />
                       </div>
-                      {m.notes && <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{m.notes}</p>}
+                      <div className="flex-1 min-w-0">
+                        {/* Title + status badge */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold">{m.title}</h3>
+                          <Badge
+                            variant={status === "live" ? "default" : status === "upcoming" ? "secondary" : "outline"}
+                            className={status === "live" ? "bg-green-600" : ""}
+                          >
+                            {status === "live" ? "Live" : status === "upcoming" ? "Upcoming" : "Ended"}
+                          </Badge>
+                        </div>
+
+                        {/* Date + creator */}
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(m.meeting_date), "MMM d, yyyy 'at' h:mm a")}
+                          <span>· Created by {(m.profiles as any)?.display_name || "Unknown"}</span>
+                        </div>
+
+                        {/* Notes */}
+                        {m.notes && (
+                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{m.notes}</p>
+                        )}
+
+                        {/* Timer + meeting link + join */}
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t flex-wrap gap-2">
+                          <MeetingTimer meetingDate={m.meeting_date} />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs text-muted-foreground hidden sm:inline-flex"
+                              onClick={() => copyLink(meetLink)}
+                              title="Copy meeting link"
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy Link
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={status === "live" ? "default" : "outline"}
+                              className={status === "live" ? "bg-green-600 hover:bg-green-700" : ""}
+                              onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                              Join Meeting
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Creator-only actions */}
+                    {isCreator && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(m)} title="Edit meeting">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => deleteMeeting(m.id)}
+                          title="Delete meeting"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={(e) => { e.stopPropagation(); deleteMeeting(m.id); }}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
+      {/* Create / Edit Dialog */}
       <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) resetForm(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editMeeting ? "Edit Meeting" : "New Meeting"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editMeeting ? "Edit Meeting" : "New Meeting"}</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
-            <Input placeholder="Meeting title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            <Input type="datetime-local" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} required />
-            <Textarea placeholder="Meeting notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={6} />
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Title</label>
+              <Input placeholder="Meeting title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Date & Time</label>
+              <Input type="datetime-local" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} required />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Notes</label>
+              <Textarea placeholder="Meeting agenda or notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
+            </div>
+            {!editMeeting && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Video className="h-3.5 w-3.5" />
+                A video meeting link will be automatically generated
+              </p>
+            )}
+            {editMeeting && (
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Meeting link:</span>{" "}
+                <a
+                  href={generateMeetLink(editMeeting.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  {generateMeetLink(editMeeting.id)}
+                </a>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
-              <Button type="submit" disabled={loading}>{loading ? "Saving..." : editMeeting ? "Update" : "Create"}</Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Saving..." : editMeeting ? "Update Meeting" : "Create Meeting"}
+              </Button>
             </div>
           </form>
         </DialogContent>
