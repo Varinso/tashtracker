@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -9,8 +10,10 @@ import {
   Plus,
   LogOut,
   ChevronDown,
-  BarChart3 } from
+  BarChart3,
+  Bell } from
 "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
