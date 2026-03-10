@@ -9,7 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Upload, Search, FileText, File, Image, Sheet, Trash2, Download, ChevronDown, ChevronRight, FolderOpen, ListChecks } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, Search, FileText, File, Image, Sheet, Trash2, Download, ChevronDown, ChevronRight, FolderOpen, ListChecks, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 
 const FILE_ICONS: Record<string, React.ComponentType<any>> = {
@@ -118,11 +119,11 @@ const Documents = () => {
       f.tags?.some((t: string) => t.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Group files by task
+  // Group files by task — show ALL tasks, even those with 0 files
   const taskGroups = tasks.map((task) => ({
     task,
     files: filtered.filter((f) => f.task_id === task.id),
-  })).filter((g) => g.files.length > 0);
+  }));
 
   // General project files (no task_id)
   const generalFiles = filtered.filter((f) => !f.task_id);
@@ -188,61 +189,74 @@ const Documents = () => {
         <Input placeholder="Search files or tags..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {taskGroups.length === 0 && generalFiles.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No documents found</CardContent></Card>
-      ) : (
-        <div className="space-y-6">
-          {/* Task-linked document sections */}
+      {/* Task document sections — always show all tasks */}
+      {taskGroups.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-primary" />
+            Task Documents
+          </h2>
           {taskGroups.map(({ task, files: taskFiles }) => {
             const isCollapsed = collapsedSections.has(task.id);
+            const statusColor = task.status === "done" ? "bg-green-500/15 text-green-700 dark:text-green-400" : task.status === "in_progress" ? "bg-primary/10 text-primary" : task.status === "review" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground";
+            const statusLabel = task.status === "done" ? "Done" : task.status === "in_progress" ? "In Progress" : task.status === "review" ? "Review" : "To Do";
             return (
-              <div key={task.id}>
-                <div className="flex items-center gap-2 mb-3">
-                  <button
-                    className="flex items-center gap-2 text-left group"
-                    onClick={() => toggleSection(task.id)}
-                  >
-                    {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    <ListChecks className="h-4 w-4 text-primary" />
-                    <h2 className="text-lg font-semibold">{task.title}</h2>
-                    <Badge variant="secondary" className="text-xs">{taskFiles.length} file{taskFiles.length !== 1 ? "s" : ""}</Badge>
-                  </button>
-                  <Button variant="ghost" size="sm" className="ml-auto" onClick={() => openUploadForTask(task.id)}>
+              <Card key={task.id} className="overflow-hidden">
+                <div className="flex items-center gap-2 p-4 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => toggleSection(task.id)}>
+                  {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  <ListChecks className="h-4 w-4 text-primary shrink-0" />
+                  <h3 className="font-semibold truncate">{task.title}</h3>
+                  <Badge variant="secondary" className={`text-xs shrink-0 ${statusColor}`}>{statusLabel}</Badge>
+                  <Badge variant="outline" className="text-xs shrink-0">{taskFiles.length} file{taskFiles.length !== 1 ? "s" : ""}</Badge>
+                  <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={(e) => { e.stopPropagation(); openUploadForTask(task.id); }}>
                     <Upload className="h-3.5 w-3.5 mr-1" /> Upload
                   </Button>
                 </div>
                 {!isCollapsed && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
-                    {taskFiles.map(renderFileCard)}
+                  <div className="border-t px-4 pb-4 pt-3">
+                    {taskFiles.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {taskFiles.map(renderFileCard)}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <FolderOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">No documents yet for this task</p>
+                        <Button variant="outline" size="sm" className="mt-3" onClick={() => openUploadForTask(task.id)}>
+                          <Upload className="h-3.5 w-3.5 mr-1" /> Upload Document
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
-
-          {/* General project files */}
-          {generalFiles.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <button
-                  className="flex items-center gap-2 text-left group"
-                  onClick={() => toggleSection("general")}
-                >
-                  {collapsedSections.has("general") ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-lg font-semibold">Project Files</h2>
-                  <Badge variant="secondary" className="text-xs">{generalFiles.length} file{generalFiles.length !== 1 ? "s" : ""}</Badge>
-                </button>
-              </div>
-              {!collapsedSections.has("general") && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
-                  {generalFiles.map(renderFileCard)}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
+
+      {/* General project files */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">General Project Files</h2>
+          <Badge variant="secondary" className="text-xs">{generalFiles.length}</Badge>
+        </div>
+        {generalFiles.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {generalFiles.map(renderFileCard)}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              <p className="text-sm">No general project files yet</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => openUploadForTask(null)}>
+                <Upload className="h-3.5 w-3.5 mr-1" /> Upload File
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <Dialog open={showUpload} onOpenChange={(open) => { setShowUpload(open); if (!open) setUploadTaskId(null); }}>
         <DialogContent>
@@ -258,6 +272,23 @@ const Documents = () => {
           </DialogHeader>
           <form onSubmit={handleUpload} className="space-y-4">
             <Input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} required />
+            {/* Task selector — shown when not already uploading for a specific task */}
+            {!uploadTaskId && tasks.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Link to task (optional)</label>
+                <Select value={uploadTaskId || "none"} onValueChange={(v) => setUploadTaskId(v === "none" ? null : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No task (general file)</SelectItem>
+                    {tasks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Textarea placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
             <Input placeholder="Tags (comma-separated)" value={tags} onChange={(e) => setTags(e.target.value)} />
             <div className="flex justify-end gap-2">
