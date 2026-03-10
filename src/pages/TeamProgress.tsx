@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Shield } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -28,21 +28,20 @@ const TeamProgress = () => {
   const [members, setMembers] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
+  const [activityLog, setActivityLog] = useState<any[]>([]);
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
 
   const fetchAll = useCallback(async () => {
     if (!currentProject || !user) {
-      setMembers([]);
-      setTasks([]);
-      setFiles([]);
-      setIsLeader(false);
-      setLoading(false);
+      setMembers([]); setTasks([]); setFiles([]); setActivityLog([]);
+      setIsLeader(false); setLoading(false);
       return;
     }
 
     setLoading(true);
-    const [membersRes, tasksRes, filesRes] = await Promise.all([
+    const [membersRes, tasksRes, filesRes, activityRes] = await Promise.all([
       supabase
         .from("project_members")
         .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
@@ -55,12 +54,19 @@ const TeamProgress = () => {
         .from("files")
         .select("id, uploaded_by, file_name, created_at")
         .eq("project_id", currentProject.id),
+      supabase
+        .from("activity_log")
+        .select("*")
+        .eq("project_id", currentProject.id)
+        .order("created_at", { ascending: false })
+        .limit(200),
     ]);
 
     const membersList = membersRes.data || [];
     setMembers(membersList);
     setTasks(tasksRes.data || []);
     setFiles(filesRes.data || []);
+    setActivityLog(activityRes.data || []);
 
     const currentMember = membersList.find((m: any) => m.user_id === user.id);
     setIsLeader(currentMember?.role === "leader" || currentMember?.role === "admin");
@@ -75,63 +81,31 @@ const TeamProgress = () => {
 
   useEffect(() => {
     if (!currentProject) return;
-
     const channel = supabase
       .channel(`team-progress-live-${currentProject.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "project_members",
-          filter: `project_id=eq.${currentProject.id}`,
-        },
-        () => fetchAll()
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tasks",
-          filter: `project_id=eq.${currentProject.id}`,
-        },
-        () => fetchAll()
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "files",
-          filter: `project_id=eq.${currentProject.id}`,
-        },
-        () => fetchAll()
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "task_assignments",
-        },
-        () => fetchAll()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "project_members", filter: `project_id=eq.${currentProject.id}` }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks", filter: `project_id=eq.${currentProject.id}` }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "files", filter: `project_id=eq.${currentProject.id}` }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_assignments" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_log", filter: `project_id=eq.${currentProject.id}` }, () => fetchAll())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [currentProject, fetchAll]);
+
+  const toggleTimeline = (userId: string) => {
+    setExpandedTimelines((prev) => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+  };
 
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project first</div>;
   }
-
   if (loading) {
     return <div className="text-center py-20 text-muted-foreground">Loading...</div>;
   }
-
   if (!isLeader) {
     return (
       <div className="text-center py-20 space-y-3">
@@ -143,9 +117,10 @@ const TeamProgress = () => {
 
   const getMemberTasks = (userId: string) =>
     tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === userId));
-
   const getMemberFiles = (userId: string) =>
     files.filter((f) => f.uploaded_by === userId);
+  const getMemberActivity = (userId: string) =>
+    activityLog.filter((a) => a.user_id === userId);
 
   return (
     <div className="space-y-6">
@@ -158,11 +133,13 @@ const TeamProgress = () => {
         {members.map((m) => {
           const memberTasks = getMemberTasks(m.user_id);
           const memberFiles = getMemberFiles(m.user_id);
+          const memberActivity = getMemberActivity(m.user_id);
           const doneTasks = memberTasks.filter((t) => t.status === "done").length;
           const totalTasks = memberTasks.length;
           const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
           const overdue = memberTasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done").length;
           const displayName = (m.profiles as any)?.display_name || "Unknown";
+          const timelineOpen = expandedTimelines.has(m.user_id);
 
           return (
             <Card key={m.id}>
@@ -232,6 +209,37 @@ const TeamProgress = () => {
                 ) : (
                   <p className="text-sm text-muted-foreground">No tasks assigned</p>
                 )}
+
+                {/* Activity Timeline */}
+                <div className="space-y-2">
+                  <button
+                    className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                    onClick={() => toggleTimeline(m.user_id)}
+                  >
+                    {timelineOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    Activity Timeline ({memberActivity.length})
+                  </button>
+                  {timelineOpen && (
+                    memberActivity.length > 0 ? (
+                      <div className="relative pl-4 border-l-2 border-muted space-y-3 ml-1">
+                        {memberActivity.slice(0, 10).map((a) => (
+                          <div key={a.id} className="relative">
+                            <div className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 border-2 border-background" />
+                            <p className="text-sm">{a.action}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(a.created_at), "MMM d, h:mm a")}
+                            </p>
+                          </div>
+                        ))}
+                        {memberActivity.length > 10 && (
+                          <p className="text-xs text-muted-foreground">+{memberActivity.length - 10} more</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground pl-4">No activity recorded</p>
+                    )
+                  )}
+                </div>
               </CardContent>
             </Card>
           );
