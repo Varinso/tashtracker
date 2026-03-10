@@ -237,6 +237,33 @@ const Tasks = () => {
         }
       }
 
+      // Log activity
+      await supabase.from("activity_log").insert({
+        project_id: currentProject.id,
+        user_id: user.id,
+        entity_type: "task",
+        entity_id: taskId,
+        action: editTask ? `updated task "${title.trim()}"` : `created task "${title.trim()}"`,
+      });
+
+      // Send notifications to assigned members
+      if (assignedUserIds.length > 0) {
+        const notifs = assignedUserIds
+          .filter((uid) => uid !== user.id)
+          .map((uid) => ({
+            user_id: uid,
+            project_id: currentProject.id,
+            title: editTask ? "Task Updated" : "New Task Assigned",
+            message: `You have been assigned to "${title.trim()}"`,
+            type: "task",
+            entity_type: "task",
+            entity_id: taskId,
+          }));
+        if (notifs.length > 0) {
+          await supabase.from("notifications").insert(notifs);
+        }
+      }
+
       toast.success(editTask ? "Task updated!" : "Task created!");
       fetchTasks();
       setShowCreate(false);
