@@ -29,24 +29,38 @@ type ViewMode = "month" | "week" | "day";
 
 const CalendarView = () => {
   const { currentProject } = useProject();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
 
   useEffect(() => {
     if (!currentProject) return;
-    const fetch = async () => {
-      const [t, m] = await Promise.all([
-        supabase.from("tasks").select("*").eq("project_id", currentProject.id).not("deadline", "is", null),
+    const fetchData = async () => {
+      const [t, m, mem] = await Promise.all([
+        supabase.from("tasks").select("*, task_assignments(user_id)").eq("project_id", currentProject.id).not("deadline", "is", null),
         supabase.from("meetings").select("*").eq("project_id", currentProject.id),
+        supabase.from("project_members").select("user_id, role").eq("project_id", currentProject.id),
       ]);
-      setTasks(t.data || []);
+      setMembers(mem.data || []);
+
+      const allTasks = t.data || [];
+      const currentMember = (mem.data || []).find((mm: any) => mm.user_id === user?.id);
+      const isLeader = currentMember?.role === "leader" || currentMember?.role === "admin";
+
+      // Filter tasks: members only see assigned tasks
+      const visibleTasks = isLeader
+        ? allTasks
+        : allTasks.filter((tk: any) => tk.task_assignments?.some((a: any) => a.user_id === user?.id));
+
+      setTasks(visibleTasks);
       setMeetings(m.data || []);
     };
-    fetch();
-  }, [currentProject]);
+    fetchData();
+  }, [currentProject, user]);
 
   const nav = (dir: number) => {
     if (viewMode === "month") setCurrentDate((d) => dir > 0 ? addMonths(d, 1) : subMonths(d, 1));

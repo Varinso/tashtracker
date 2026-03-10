@@ -557,7 +557,7 @@ const Tasks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {STATUSES.map((colStatus) => {
             const colTasks = sortTasks(
-              tasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
+              visibleTasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
             );
             return (
               <div

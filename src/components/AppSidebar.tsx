@@ -138,7 +138,16 @@ export function AppSidebar() {
                     activeClassName="bg-accent text-accent-foreground font-medium">
                     
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && (
+                        <span className="flex-1 flex items-center justify-between">
+                          {item.title}
+                          {item.title === "Notifications" && unreadCount > 0 && (
+                            <span className="ml-auto bg-destructive text-destructive-foreground text-xs rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
