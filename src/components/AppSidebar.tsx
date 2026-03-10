@@ -56,6 +56,26 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const { projects, currentProject, setCurrentProject } = useProject();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("read", false);
+      setUnreadCount(count || 0);
+    };
+    fetchUnread();
+
+    const channel = supabase
+      .channel(`sidebar-notif-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => fetchUnread())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   return (
     <Sidebar collapsible="icon">
