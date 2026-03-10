@@ -15,6 +15,7 @@ import Documents from "./pages/Documents";
 import Meetings from "./pages/Meetings";
 import Team from "./pages/Team";
 import TeamProgress from "./pages/TeamProgress";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
