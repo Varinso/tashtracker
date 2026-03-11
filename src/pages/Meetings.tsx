@@ -122,7 +122,7 @@ const Meetings = () => {
     try {
       const payload = {
         title: title.trim(),
-        meeting_date: meetingDate,
+        meeting_date: new Date(meetingDate).toISOString(),
         meet_link: meetLink.trim() || null,
         notes: notes.trim() || null,
         project_id: currentProject.id,
