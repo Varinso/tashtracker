@@ -176,6 +176,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          meet_link: string | null
           meeting_date: string
           notes: string | null
           project_id: string
@@ -186,6 +187,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          meet_link?: string | null
           meeting_date: string
           notes?: string | null
           project_id: string
@@ -196,6 +198,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          meet_link?: string | null
           meeting_date?: string
           notes?: string | null
           project_id?: string
