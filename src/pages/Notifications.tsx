@@ -111,45 +111,66 @@ const Notifications = () => {
         )}
       </div>
 
-      {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : notifications.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <Bell className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No notifications yet</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => {
-            const Icon = TYPE_ICONS[n.type] || Bell;
-            return (
-              <Card
-                key={n.id}
-                className={`cursor-pointer transition-all hover:shadow-sm ${!n.read ? "border-primary/30 bg-primary/5" : ""}`}
-                onClick={() => !n.read && markAsRead(n.id)}
-              >
-                <CardContent className="p-4 flex items-start gap-3">
-                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${!n.read ? "bg-primary/10" : "bg-muted"}`}>
-                    <Icon className={`h-4 w-4 ${!n.read ? "text-primary" : "text-muted-foreground"}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {!n.read && <Circle className="h-2 w-2 fill-primary text-primary shrink-0" />}
-                      <h3 className={`text-sm truncate ${!n.read ? "font-semibold" : "font-medium"}`}>{n.title}</h3>
-                    </div>
-                    {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(n.created_at), "MMM d, h:mm a")}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <Tabs defaultValue="notifications">
+        <TabsList>
+          <TabsTrigger value="notifications">
+            <Bell className="h-4 w-4 mr-1" /> Notifications
+          </TabsTrigger>
+          {isLeader && (
+            <TabsTrigger value="discord">
+              <Settings className="h-4 w-4 mr-1" /> Discord Settings
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="notifications">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading...</div>
+          ) : notifications.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <Bell className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>No notifications yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((n) => {
+                const Icon = TYPE_ICONS[n.type] || Bell;
+                return (
+                  <Card
+                    key={n.id}
+                    className={`cursor-pointer transition-all hover:shadow-sm ${!n.read ? "border-primary/30 bg-primary/5" : ""}`}
+                    onClick={() => !n.read && markAsRead(n.id)}
+                  >
+                    <CardContent className="p-4 flex items-start gap-3">
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${!n.read ? "bg-primary/10" : "bg-muted"}`}>
+                        <Icon className={`h-4 w-4 ${!n.read ? "text-primary" : "text-muted-foreground"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {!n.read && <Circle className="h-2 w-2 fill-primary text-primary shrink-0" />}
+                          <h3 className={`text-sm truncate ${!n.read ? "font-semibold" : "font-medium"}`}>{n.title}</h3>
+                        </div>
+                        {n.message && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(n.created_at), "MMM d, h:mm a")}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {isLeader && (
+          <TabsContent value="discord">
+            <DiscordWebhookSettings />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 };
