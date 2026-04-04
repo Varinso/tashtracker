@@ -263,11 +263,14 @@ const Tasks = () => {
         if (notifs.length > 0) {
           await supabase.from("notifications").insert(notifs);
         }
-        // Send Discord notification
+        // Send Discord notification with assigned member names
+        const assignedNames = assignedUserIds
+          .map((uid) => members.find((m) => m.user_id === uid)?.profiles?.display_name || "Unknown")
+          .join(", ");
         sendDiscordNotification(
           currentProject.id,
           editTask ? "📝 Task Updated" : "📋 New Task Assigned",
-          `"${title.trim()}" assigned to ${assignedUserIds.length} member(s)`,
+          `"${title.trim()}" assigned to: ${assignedNames}`,
           "task"
         );
       }
