@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
-import { Bell, CheckCheck, Circle, FileText, ListChecks, Users, Calendar } from "lucide-react";
+import { Bell, CheckCheck, Circle, FileText, ListChecks, Users, Calendar, Settings } from "lucide-react";
 import { format } from "date-fns";
+import DiscordWebhookSettings from "@/components/DiscordWebhookSettings";
 
 const TYPE_ICONS: Record<string, React.ComponentType<any>> = {
   task: ListChecks,
