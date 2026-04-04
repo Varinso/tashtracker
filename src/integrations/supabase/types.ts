@@ -104,6 +104,60 @@ export type Database = {
           },
         ]
       }
+      discord_webhooks: {
+        Row: {
+          channel_name: string
+          created_at: string
+          created_by: string
+          enabled: boolean
+          id: string
+          notify_files: boolean
+          notify_meetings: boolean
+          notify_tasks: boolean
+          project_id: string
+          webhook_url: string
+        }
+        Insert: {
+          channel_name: string
+          created_at?: string
+          created_by: string
+          enabled?: boolean
+          id?: string
+          notify_files?: boolean
+          notify_meetings?: boolean
+          notify_tasks?: boolean
+          project_id: string
+          webhook_url: string
+        }
+        Update: {
+          channel_name?: string
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          id?: string
+          notify_files?: boolean
+          notify_meetings?: boolean
+          notify_tasks?: boolean
+          project_id?: string
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discord_webhooks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discord_webhooks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       files: {
         Row: {
           created_at: string
