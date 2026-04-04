@@ -263,6 +263,13 @@ const Tasks = () => {
         if (notifs.length > 0) {
           await supabase.from("notifications").insert(notifs);
         }
+        // Send Discord notification
+        sendDiscordNotification(
+          currentProject.id,
+          editTask ? "📝 Task Updated" : "📋 New Task Assigned",
+          `"${title.trim()}" assigned to ${assignedUserIds.length} member(s)`,
+          "task"
+        );
       }
 
       toast.success(editTask ? "Task updated!" : "Task created!");
