@@ -23,6 +23,20 @@ const Notifications = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLeader, setIsLeader] = useState(false);
+
+  useEffect(() => {
+    if (!user || !currentProject) { setIsLeader(false); return; }
+    supabase
+      .from("project_members")
+      .select("role")
+      .eq("project_id", currentProject.id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsLeader(data?.role === "leader" || data?.role === "admin");
+      });
+  }, [user, currentProject]);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
