@@ -352,6 +352,7 @@ export type Database = {
       }
       project_members: {
         Row: {
+          designation: string | null
           id: string
           joined_at: string
           project_id: string
@@ -359,6 +360,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          designation?: string | null
           id?: string
           joined_at?: string
           project_id: string
@@ -366,6 +368,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          designation?: string | null
           id?: string
           joined_at?: string
           project_id?: string

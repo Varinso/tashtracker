@@ -34,6 +34,8 @@ const Team = () => {
   const [loading, setLoading] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [editingDesignationMember, setEditingDesignationMember] = useState<string | null>(null);
+  const [designationDraft, setDesignationDraft] = useState("");
 
   const fetchMembers = async () => {
     if (!currentProject) return;
@@ -63,6 +65,26 @@ const Team = () => {
       .eq("id", memberId);
     if (error) toast.error(error.message);
     else { toast.success("Role updated"); setEditingMember(null); fetchMembers(); }
+  };
+
+  const startDesignationEdit = (member: any) => {
+    setEditingDesignationMember(member.id);
+    setDesignationDraft(member.designation || "");
+  };
+
+  const saveDesignation = async (memberId: string) => {
+    const { error } = await supabase
+      .from("project_members")
+      .update({ designation: designationDraft.trim() || null })
+      .eq("id", memberId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Designation updated");
+    setEditingDesignationMember(null);
+    setDesignationDraft("");
+    fetchMembers();
   };
 
   if (!currentProject) {
@@ -114,6 +136,38 @@ const Team = () => {
                       <p className="text-xs text-muted-foreground mt-1">
                         Joined {format(new Date(m.joined_at), "MMM d, yyyy")}
                       </p>
+                      {editingDesignationMember === m.id ? (
+                        <div className="mt-2 space-y-2">
+                          <Input
+                            value={designationDraft}
+                            onChange={(e) => setDesignationDraft(e.target.value)}
+                            placeholder="Designation (e.g. Frontend Developer)"
+                            className="h-8 text-xs"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" className="h-7 px-2 text-xs" onClick={() => saveDesignation(m.id)}>Save</Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => { setEditingDesignationMember(null); setDesignationDraft(""); }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="mt-2"
+                          onClick={() => {
+                            if (isLeader) startDesignationEdit(m);
+                          }}
+                        >
+                          <Badge variant="outline" className="text-xs">
+                            {m.designation || "No designation"}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {isLeader && m.user_id !== user?.id && (
