@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { Plus, Search, Calendar, User, MoreHorizontal, X, List, Columns3, Clock, Flag, Layers } from "lucide-react";
+import { Plus, Search, Calendar, User, MoreHorizontal, X, List, Columns3, Clock, Flag, Layers, Filter as FilterIcon } from "lucide-react";
 import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -69,7 +69,9 @@ const Tasks = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
-  const [filter, setFilter] = useState<string>("all");
+  const [taskScope, setTaskScope] = useState<"all" | "active" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "upcoming" | "overdue">("all");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editTask, setEditTask] = useState<any>(null);
@@ -321,10 +323,34 @@ const Tasks = () => {
     ? tasks
     : tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === user?.id));
 
+  const allCount = visibleTasks.length;
+  const activeCount = visibleTasks.filter((t) => t.status !== "done").length;
+  const completedCount = visibleTasks.filter((t) => t.status === "done").length;
+
+  const nowDate = new Date();
+  const startOfToday = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate());
+  const endOfToday = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), 23, 59, 59, 999);
+
+  const matchesDateFilter = (task: any) => {
+    if (dateFilter === "all") return true;
+    if (!task.deadline) return false;
+    const taskDate = new Date(task.deadline);
+    if (dateFilter === "today") return taskDate >= startOfToday && taskDate <= endOfToday;
+    if (dateFilter === "upcoming") return taskDate > endOfToday;
+    if (dateFilter === "overdue") return taskDate < startOfToday && task.status !== "done";
+    return true;
+  };
+
   const filtered = sortTasks(
     visibleTasks
-      .filter((t) => filter === "all" || t.status === filter)
+      .filter((t) => {
+        if (taskScope === "active") return t.status !== "done";
+        if (taskScope === "completed") return t.status === "done";
+        return true;
+      })
+      .filter((t) => statusFilter === "all" || t.status === statusFilter)
       .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
+      .filter(matchesDateFilter)
   );
 
   // Drag and drop handlers
@@ -569,23 +595,67 @@ const Tasks = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      {/* Search + actions */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search tasks..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        {view === "list" && (
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-10">
+              <FilterIcon className="h-4 w-4 mr-2" /> Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setStatusFilter("all")}>All Status</DropdownMenuItem>
+            {STATUSES.map((s) => (
+              <DropdownMenuItem key={s} onClick={() => setStatusFilter(s)}>
+                {STATUS_LABELS[s]} {statusFilter === s ? "•" : ""}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-10">
+              <Calendar className="h-4 w-4 mr-2" /> Date
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setDateFilter("all")}>All Dates{dateFilter === "all" ? " •" : ""}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDateFilter("today")}>Today{dateFilter === "today" ? " •" : ""}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDateFilter("upcoming")}>Upcoming{dateFilter === "upcoming" ? " •" : ""}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDateFilter("overdue")}>Overdue{dateFilter === "overdue" ? " •" : ""}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={taskScope === "all" ? "default" : "outline"}
+          className="h-8 rounded-md"
+          onClick={() => setTaskScope("all")}
+        >
+          All ({allCount})
+        </Button>
+        <Button
+          variant={taskScope === "active" ? "default" : "outline"}
+          className="h-8 rounded-md"
+          onClick={() => setTaskScope("active")}
+        >
+          Active ({activeCount})
+        </Button>
+        <Button
+          variant={taskScope === "completed" ? "default" : "outline"}
+          className="h-8 rounded-md"
+          onClick={() => setTaskScope("completed")}
+        >
+          Completed ({completedCount})
+        </Button>
       </div>
 
       {/* Views */}
@@ -601,7 +671,15 @@ const Tasks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {STATUSES.map((colStatus) => {
             const colTasks = sortTasks(
-              visibleTasks.filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
+              visibleTasks
+                .filter((t) => {
+                  if (taskScope === "active") return t.status !== "done";
+                  if (taskScope === "completed") return t.status === "done";
+                  return true;
+                })
+                .filter((t) => statusFilter === "all" || t.status === statusFilter)
+                .filter((t) => t.status === colStatus && t.title.toLowerCase().includes(search.toLowerCase()))
+                .filter(matchesDateFilter)
             );
             return (
               <div
