@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 type TaskStatus = "todo" | "in_progress" | "review" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
+type TaskPermissionKey = "create_tasks" | "edit_tasks" | "change_task_status" | "delete_tasks" | "assign_tasks";
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: "To Do",
@@ -52,6 +53,14 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
 const PRIORITY_WEIGHT: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "review", "done"];
+
+const DEFAULT_TASK_PERMISSIONS: Record<TaskPermissionKey, boolean> = {
+  create_tasks: false,
+  edit_tasks: false,
+  change_task_status: true,
+  delete_tasks: false,
+  assign_tasks: false,
+};
 
 function sortTasks(tasks: any[]) {
   return [...tasks].sort((a, b) => {
@@ -194,14 +203,23 @@ const Tasks = () => {
     }
   }, [searchParams, tasks]);
 
-  const currentUserRole = members.find((m) => m.user_id === user?.id)?.role;
+  const currentMember = members.find((m) => m.user_id === user?.id);
+  const currentUserRole = currentMember?.role;
   const isLeader = currentUserRole === "leader" || currentUserRole === "admin";
+  const taskPermissions = {
+    ...DEFAULT_TASK_PERMISSIONS,
+    ...(currentMember?.task_permissions || {}),
+  } as Record<TaskPermissionKey, boolean>;
 
-  // Only leaders can create tasks
-  const canCreateTask = isLeader;
+  const canCreateTask = isLeader || !!taskPermissions.create_tasks;
+  const canEditTask = isLeader || !!taskPermissions.edit_tasks;
+  const canChangeTaskStatus = isLeader || !!taskPermissions.change_task_status;
+  const canDeleteTask = isLeader || !!taskPermissions.delete_tasks;
+  const canAssignTasks = isLeader || !!taskPermissions.assign_tasks;
+  const canViewAllTasks = isLeader || canEditTask || canDeleteTask || canAssignTasks || canCreateTask;
 
   const openEdit = (task: any) => {
-    if (!isLeader) return; // Only leaders can edit
+    if (!canEditTask) return;
     setEditTask(task);
     setTitle(task.title);
     setDescription(task.description || "");
@@ -220,6 +238,17 @@ const Tasks = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentProject || !user) return;
+
+    if (editTask && !canEditTask) {
+      toast.error("You do not have permission to edit tasks");
+      return;
+    }
+
+    if (!editTask && !canCreateTask) {
+      toast.error("You do not have permission to create tasks");
+      return;
+    }
+
     setLoading(true);
     try {
       const taskData = {
@@ -246,7 +275,7 @@ const Tasks = () => {
       }
 
       // Sync assignments
-      if (isLeader || !editTask) {
+      if (canAssignTasks) {
         const { error: clearAssignmentsError } = await supabase
           .from("task_assignments")
           .delete()
@@ -310,12 +339,22 @@ const Tasks = () => {
   };
 
   const deleteTask = async (id: string) => {
+    if (!canDeleteTask) {
+      toast.error("You do not have permission to delete tasks");
+      return;
+    }
+
     const { error } = await supabase.from("tasks").delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success("Task deleted"); fetchTasks(); }
   };
 
   const updateStatus = async (id: string, newStatus: TaskStatus) => {
+    if (!canChangeTaskStatus) {
+      toast.error("You do not have permission to change task status");
+      return;
+    }
+
     const task = tasks.find((t) => t.id === id);
     const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", id);
     if (error) { toast.error(error.message); return; }
@@ -334,6 +373,11 @@ const Tasks = () => {
   };
 
   const requestStatusChange = (id: string, newStatus: TaskStatus) => {
+    if (!canChangeTaskStatus) {
+      toast.error("You do not have permission to change task status");
+      return;
+    }
+
     if (newStatus === "done") {
       setPendingDoneTask(tasks.find((task) => task.id === id));
       return;
@@ -357,6 +401,7 @@ const Tasks = () => {
 
   // Filter tasks: members only see assigned tasks, leaders see all
   const visibleTasks = isLeader
+    || canViewAllTasks
     ? tasks
     : tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === user?.id));
 
@@ -450,6 +495,8 @@ const Tasks = () => {
   const handleDragStart = (taskId: string) => setDragTaskId(taskId);
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (targetStatus: TaskStatus) => {
+    if (!canChangeTaskStatus) return;
+
     if (dragTaskId) {
       updateStatus(dragTaskId, targetStatus);
       setDragTaskId(null);
@@ -468,7 +515,7 @@ const Tasks = () => {
       <div ref={setTaskNodeRef(task.id)}>
         <Card
           className={`hover:shadow-md transition-shadow duration-200 cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""} ${task.status === "done" ? "border-green-500/40 bg-green-500/[0.03]" : ""}`}
-          draggable
+          draggable={canChangeTaskStatus}
           onDragStart={() => handleDragStart(task.id)}
           onClick={() => {
             if (compact) {
@@ -511,20 +558,22 @@ const Tasks = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
-                    {STATUSES.map((s) => (
-                      <Button
-                        key={s}
-                        variant={task.status === s ? "default" : "outline"}
-                        size="sm"
-                        className={`h-6 text-[10px] px-1.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
-                        onClick={() => requestStatusChange(task.id, s)}
-                        disabled={task.status === s}
-                      >
-                        {STATUS_LABELS[s]}
-                      </Button>
-                    ))}
-                  </div>
+                  {canChangeTaskStatus && (
+                    <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                      {STATUSES.map((s) => (
+                        <Button
+                          key={s}
+                          variant={task.status === s ? "default" : "outline"}
+                          size="sm"
+                          className={`h-6 text-[10px] px-1.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
+                          onClick={() => requestStatusChange(task.id, s)}
+                          disabled={task.status === s}
+                        >
+                          {STATUS_LABELS[s]}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {/* Compact expanded details (kanban) */}
@@ -547,7 +596,7 @@ const Tasks = () => {
                       </span>
                     )}
                   </div>
-                  {isLeader && (
+                  {canEditTask && (
                     <Button variant="outline" size="sm" className="w-full mt-1" onClick={(e) => { e.stopPropagation(); openEdit(task); }}>
                       Edit Task
                     </Button>
@@ -574,7 +623,7 @@ const Tasks = () => {
                 </div>
               )}
               {/* Quick status buttons */}
-              {!compact && !isExpanded && (
+              {!compact && !isExpanded && canChangeTaskStatus && (
                 <div className="flex flex-wrap gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
                   {STATUSES.map((s) => (
                     <Button
@@ -638,7 +687,7 @@ const Tasks = () => {
                     <p className="text-xs text-muted-foreground">
                       Created {format(new Date(task.created_at), "MMM d, yyyy")}
                     </p>
-                    {isLeader && (
+                    {canEditTask && (
                       <Button variant="outline" size="sm" className="ml-auto" onClick={(e) => { e.stopPropagation(); openEdit(task); }}>
                         Edit Task
                       </Button>
@@ -647,18 +696,18 @@ const Tasks = () => {
                 </div>
               )}
             </div>
-            {!compact && !isExpanded && (
+            {!compact && !isExpanded && (canChangeTaskStatus || canDeleteTask) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {STATUSES.map((s) => (
+                  {canChangeTaskStatus && STATUSES.map((s) => (
                     <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); requestStatusChange(task.id, s); }}>
                       Move to {STATUS_LABELS[s]}
                     </DropdownMenuItem>
                   ))}
-                  {isLeader && (
+                  {canDeleteTask && (
                     <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}>
                       Delete
                     </DropdownMenuItem>
@@ -832,7 +881,7 @@ const Tasks = () => {
             </div>
 
             {/* Assign Members */}
-            {members.length > 0 && (
+            {members.length > 0 && canAssignTasks && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Assign to</label>
                 <div className="flex flex-wrap gap-2">

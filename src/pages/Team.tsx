@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,36 @@ const ROLE_COLORS: Record<string, string> = {
   member: "bg-muted text-muted-foreground",
 };
 
+type TaskPermissionKey = "create_tasks" | "edit_tasks" | "change_task_status" | "delete_tasks" | "assign_tasks";
+
+const TASK_PERMISSION_LABELS: Record<TaskPermissionKey, string> = {
+  create_tasks: "Create tasks",
+  edit_tasks: "Edit task details",
+  change_task_status: "Change task status",
+  delete_tasks: "Delete tasks",
+  assign_tasks: "Assign members",
+};
+
+const getDefaultTaskPermissions = (role: string) => {
+  if (role === "admin" || role === "leader") {
+    return {
+      create_tasks: true,
+      edit_tasks: true,
+      change_task_status: true,
+      delete_tasks: true,
+      assign_tasks: true,
+    };
+  }
+
+  return {
+    create_tasks: false,
+    edit_tasks: false,
+    change_task_status: true,
+    delete_tasks: false,
+    assign_tasks: false,
+  };
+};
+
 const Team = () => {
   const { currentProject } = useProject();
   const { user } = useAuth();
@@ -36,6 +67,7 @@ const Team = () => {
   const [editingMember, setEditingMember] = useState<string | null>(null);
   const [editingDesignationMember, setEditingDesignationMember] = useState<string | null>(null);
   const [designationDraft, setDesignationDraft] = useState("");
+  const [permissionSavingMember, setPermissionSavingMember] = useState<string | null>(null);
 
   const fetchMembers = async () => {
     if (!currentProject) return;
@@ -59,12 +91,43 @@ const Team = () => {
   };
 
   const updateRole = async (memberId: string, newRole: string) => {
+    const member = members.find((m) => m.id === memberId);
     const { error } = await supabase
       .from("project_members")
-      .update({ role: newRole as any })
+      .update({
+        role: newRole as any,
+        task_permissions: member ? getDefaultTaskPermissions(newRole) : undefined,
+      })
       .eq("id", memberId);
     if (error) toast.error(error.message);
     else { toast.success("Role updated"); setEditingMember(null); fetchMembers(); }
+  };
+
+  const updateTaskPermission = async (member: any, permission: TaskPermissionKey, enabled: boolean) => {
+    const currentPermissions = {
+      ...getDefaultTaskPermissions(member.role),
+      ...(member.task_permissions || {}),
+    };
+
+    const nextPermissions = {
+      ...currentPermissions,
+      [permission]: enabled,
+    };
+
+    setPermissionSavingMember(member.id);
+    const { error } = await supabase
+      .from("project_members")
+      .update({ task_permissions: nextPermissions })
+      .eq("id", member.id);
+
+    setPermissionSavingMember(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Task permission updated");
+    fetchMembers();
   };
 
   const startDesignationEdit = (member: any) => {
@@ -107,6 +170,12 @@ const Team = () => {
           const RoleIcon = ROLE_ICONS[m.role] || User;
           const memberEmail = (m.profiles as any)?.email;
           const mailtoUrl = memberEmail ? `mailto:${encodeURIComponent(memberEmail)}` : "";
+          const memberPermissions = {
+            ...getDefaultTaskPermissions(m.role),
+            ...(m.task_permissions || {}),
+          } as Record<TaskPermissionKey, boolean>;
+          const canManageMember = isLeader && m.user_id !== user?.id;
+
           return (
             <Card key={m.id}>
               <CardContent className="p-5">
@@ -118,7 +187,7 @@ const Team = () => {
                     <div>
                       <h3 className="font-semibold">{(m.profiles as any)?.display_name || "Unknown"}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">{memberEmail || "No email available"}</p>
-                      {isLeader && m.user_id !== user?.id && editingMember === m.id ? (
+                      {canManageMember && editingMember === m.id ? (
                         <Select defaultValue={m.role} onValueChange={(val) => updateRole(m.id, val)}>
                           <SelectTrigger className="h-7 w-[130px] text-xs">
                             <SelectValue />
@@ -129,7 +198,7 @@ const Team = () => {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={() => isLeader && m.user_id !== user?.id && setEditingMember(m.id)}>
+                        <div className="flex items-center gap-2 mt-1 cursor-pointer" onClick={() => canManageMember && setEditingMember(m.id)}>
                           <Badge className={ROLE_COLORS[m.role]}>
                             <RoleIcon className="h-3 w-3 mr-1" />
                             {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
@@ -173,12 +242,34 @@ const Team = () => {
                       )}
                     </div>
                   </div>
-                  {isLeader && m.user_id !== user?.id && (
+                  {canManageMember && (
                     <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeMember(m.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
+
+                {canManageMember && (
+                  <div className="mt-4 border-t pt-3 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Task permissions</p>
+                    {m.role === "member" ? (
+                      <div className="space-y-2">
+                        {(Object.keys(TASK_PERMISSION_LABELS) as TaskPermissionKey[]).map((permissionKey) => (
+                          <label key={permissionKey} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={!!memberPermissions[permissionKey]}
+                              onCheckedChange={(checked) => updateTaskPermission(m, permissionKey, checked === true)}
+                              disabled={permissionSavingMember === m.id}
+                            />
+                            <span>{TASK_PERMISSION_LABELS[permissionKey]}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Leaders and admins always have full task access.</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 border-t pt-3">
                   <Button variant="outline" size="sm" className="w-full h-8 text-xs" asChild={!!memberEmail} disabled={!memberEmail}>
@@ -239,7 +330,12 @@ const Team = () => {
                     // Add to project
                     const { error: insertError } = await supabase
                       .from("project_members")
-                      .insert({ project_id: currentProject!.id, user_id: targetUserId, role: inviteRole as any });
+                      .insert({
+                        project_id: currentProject!.id,
+                        user_id: targetUserId,
+                        role: inviteRole as any,
+                        task_permissions: getDefaultTaskPermissions(inviteRole),
+                      });
                     if (insertError) throw insertError;
                     toast.success("Member added successfully");
                     setInviteEmail("");
