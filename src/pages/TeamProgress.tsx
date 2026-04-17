@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, Search, Download, ArrowUpRight, Users, Activity, Target } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, Search, Download, ArrowUpRight, Users, Activity, Target, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,6 +36,36 @@ const TeamProgress = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  const exportReport = () => {
+    const rows = [
+      ["Member", "Designation", "Role", "Tasks Completed", "Total Tasks", "Progress %", "Files", "Overdue Tasks", "Avg Completion (days)"],
+      ...memberMetrics.map((member) => [
+        member.displayName,
+        member.designation || "",
+        member.role,
+        String(member.doneTasks),
+        String(member.totalTasks),
+        String(member.progress),
+        String(member.memberFiles.length),
+        String(member.overdue),
+        String(member.avgCompletionDays ?? 0),
+      ]),
+    ];
+
+    const csv = rows
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${currentProject?.name || "team-progress"}-report.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success("Report exported");
+  };
+
   const fetchAll = useCallback(async () => {
     if (!currentProject || !user) {
       setMembers([]); setTasks([]); setFiles([]); setActivityLog([]);
@@ -47,7 +77,7 @@ const TeamProgress = () => {
     const [membersRes, tasksRes, filesRes, activityRes] = await Promise.all([
       supabase
         .from("project_members")
-        .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
+        .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url, email)")
         .eq("project_id", currentProject.id),
       supabase
         .from("tasks")
@@ -78,7 +108,7 @@ const TeamProgress = () => {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    const interval = setInterval(fetchAll, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchAll]);
 
@@ -103,6 +133,16 @@ const TeamProgress = () => {
       const doneTasks = memberTasks.filter((t) => t.status === "done").length;
       const totalTasks = memberTasks.length;
       const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+      const completionDurations = memberTasks
+        .filter((t) => t.status === "done")
+        .map((t) => {
+          const startedAt = new Date(t.created_at).getTime();
+          const finishedAt = new Date(t.updated_at || t.created_at).getTime();
+          return Math.max(finishedAt - startedAt, 0);
+        });
+      const avgCompletionDays = completionDurations.length > 0
+        ? Math.round(((completionDurations.reduce((sum, duration) => sum + duration, 0) / completionDurations.length) / 86400000) * 10) / 10
+        : 0;
       const overdue = memberTasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done").length;
       const displayName = (member.profiles as any)?.display_name || "Unknown";
 
@@ -115,6 +155,7 @@ const TeamProgress = () => {
         doneTasks,
         totalTasks,
         progress,
+        avgCompletionDays,
         overdue,
       };
     });
@@ -133,6 +174,10 @@ const TeamProgress = () => {
 
   const avgProgress = memberMetrics.length
     ? Math.round(memberMetrics.reduce((sum, member) => sum + member.progress, 0) / memberMetrics.length)
+    : 0;
+
+  const avgCompletionTime = memberMetrics.length
+    ? Math.round((memberMetrics.reduce((sum, member) => sum + member.avgCompletionDays, 0) / memberMetrics.length) * 10) / 10
     : 0;
 
   const distribution = [
@@ -184,7 +229,10 @@ const TeamProgress = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => toast.success("Report exported") }>
+          <Button variant="outline" onClick={fetchAll}>
+            <RotateCcw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <Button variant="outline" onClick={exportReport}>
             <Download className="h-4 w-4 mr-2" /> Export Report
           </Button>
         </div>
@@ -202,7 +250,7 @@ const TeamProgress = () => {
           { label: "Total Tasks Completed", value: totalCompletedTasks, icon: CheckCircle2, delta: `+${totalCompletedTasks - totalOverdue}` },
           { label: "Active Projects", value: currentProject ? 1 : 0, icon: Target, delta: `+${members.length}` },
           { label: "Team Members", value: members.length, icon: Users, delta: `${avgProgress}% avg progress` },
-          { label: "Avg. Completion Time", value: `${avgProgress / 10 || 0}.3`, suffix: "days", icon: Clock, delta: `${totalFiles} files shared` },
+          { label: "Avg. Completion Time", value: avgCompletionTime, suffix: "days", icon: Clock, delta: `${totalFiles} files shared` },
         ].map((item) => (
           <Card key={item.label} className="shadow-sm">
             <CardContent className="p-5">
@@ -314,7 +362,7 @@ const TeamProgress = () => {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {activityLog.slice(0, 6).map((item) => (
                 <div key={item.id} className="rounded-xl border p-4 bg-muted/10">
-                  <p className="text-sm font-medium">{(item.profiles as any)?.display_name || "Member"}</p>
+                  <p className="text-sm font-medium">{(item.profiles as any)?.display_name || members.find((m: any) => m.user_id === item.user_id)?.profiles?.display_name || "Member"}</p>
                   <p className="text-sm text-muted-foreground mt-1">{item.action}</p>
                   <p className="text-xs text-muted-foreground mt-2">{format(new Date(item.created_at), "MMM d, h:mm a")}</p>
                 </div>
