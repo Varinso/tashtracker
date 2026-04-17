@@ -80,9 +80,10 @@ const Tasks = () => {
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [pendingDoneTask, setPendingDoneTask] = useState<any>(null);
+  const [slidingTaskId, setSlidingTaskId] = useState<string | null>(null);
   const taskNodeRefs = useRef(new Map<string, HTMLDivElement | null>());
   const previousTaskRects = useRef(new Map<string, DOMRect>());
-  const animationFrameRef = useRef<number | null>(null);
+  const slideCleanupTimerRef = useRef<number | null>(null);
 
   // Create/edit form state
   const [title, setTitle] = useState("");
@@ -398,36 +399,52 @@ const Tasks = () => {
       const nextRect = node.getBoundingClientRect();
       nextRects.set(taskId, nextRect);
 
+      if (!slidingTaskId || taskId !== slidingTaskId || view !== "list") return;
+
       const previousRect = previousTaskRects.current.get(taskId);
       if (!previousRect) return;
 
       const deltaX = previousRect.left - nextRect.left;
       const deltaY = previousRect.top - nextRect.top;
 
-      if (deltaX === 0 && deltaY === 0) return;
+      if (deltaX === 0 && deltaY === 0) {
+        setSlidingTaskId(null);
+        return;
+      }
 
       node.style.transition = "transform 0s";
       node.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
       node.style.willChange = "transform";
+      node.style.zIndex = "20";
 
-      if (animationFrameRef.current !== null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
+      window.requestAnimationFrame(() => {
+        node.style.transition = "transform 260ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = "translate3d(0, 0, 0)";
+      });
+
+      if (slideCleanupTimerRef.current !== null) {
+        window.clearTimeout(slideCleanupTimerRef.current);
       }
 
-      animationFrameRef.current = window.requestAnimationFrame(() => {
-        node.style.transition = "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
-        node.style.transform = "translate3d(0, 0, 0)";
-
-        window.setTimeout(() => {
-          node.style.transition = "";
-          node.style.transform = "";
-          node.style.willChange = "";
-        }, 450);
-      });
+      slideCleanupTimerRef.current = window.setTimeout(() => {
+        node.style.transition = "";
+        node.style.transform = "";
+        node.style.willChange = "";
+        node.style.zIndex = "";
+        setSlidingTaskId(null);
+      }, 300);
     });
 
     previousTaskRects.current = nextRects;
-  }, [filtered, view, taskScope, statusFilter, dateFilter, search, tasks]);
+  }, [filtered, view, slidingTaskId]);
+
+  useEffect(() => {
+    return () => {
+      if (slideCleanupTimerRef.current !== null) {
+        window.clearTimeout(slideCleanupTimerRef.current);
+      }
+    };
+  }, []);
 
   // Drag and drop handlers
   const handleDragStart = (taskId: string) => setDragTaskId(taskId);
@@ -450,7 +467,7 @@ const Tasks = () => {
     return (
       <div ref={setTaskNodeRef(task.id)}>
         <Card
-          className={`hover:shadow-md transition-all cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""} ${task.status === "done" ? "border-green-500/40 bg-green-500/[0.03]" : ""}`}
+          className={`hover:shadow-md transition-shadow duration-200 cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""} ${task.status === "done" ? "border-green-500/40 bg-green-500/[0.03]" : ""}`}
           draggable
           onDragStart={() => handleDragStart(task.id)}
           onClick={() => {
@@ -860,6 +877,7 @@ const Tasks = () => {
             <AlertDialogAction
               onClick={async () => {
                 if (!pendingDoneTask) return;
+                setSlidingTaskId(pendingDoneTask.id);
                 await updateStatus(pendingDoneTask.id, "done");
                 setPendingDoneTask(null);
               }}
