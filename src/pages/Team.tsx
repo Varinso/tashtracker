@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { UserPlus, Shield, Crown, User, Trash2 } from "lucide-react";
+import { UserPlus, Shield, Crown, User, Trash2, Mail } from "lucide-react";
 import { format } from "date-fns";
 
 const ROLE_ICONS: Record<string, React.ComponentType<any>> = {
@@ -41,7 +41,7 @@ const Team = () => {
     if (!currentProject) return;
     const { data } = await supabase
       .from("project_members")
-      .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url)")
+      .select("*, profiles!project_members_user_id_profiles_fkey(display_name, avatar_url, email)")
       .eq("project_id", currentProject.id)
       .order("joined_at");
     setMembers(data || []);
@@ -105,6 +105,11 @@ const Team = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {members.map((m) => {
           const RoleIcon = ROLE_ICONS[m.role] || User;
+          const memberEmail = (m.profiles as any)?.email;
+          const gmailComposeUrl = memberEmail
+            ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(memberEmail)}`
+            : "";
+          const mailtoUrl = memberEmail ? `mailto:${encodeURIComponent(memberEmail)}` : "";
           return (
             <Card key={m.id}>
               <CardContent className="p-5">
@@ -115,6 +120,7 @@ const Team = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold">{(m.profiles as any)?.display_name || "Unknown"}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{memberEmail || "No email available"}</p>
                       {isLeader && m.user_id !== user?.id && editingMember === m.id ? (
                         <Select defaultValue={m.role} onValueChange={(val) => updateRole(m.id, val)}>
                           <SelectTrigger className="h-7 w-[130px] text-xs">
@@ -175,6 +181,31 @@ const Team = () => {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
+                </div>
+
+                <div className="mt-4 border-t pt-3 grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="w-full" asChild={!!memberEmail} disabled={!memberEmail}>
+                    {memberEmail ? (
+                      <a href={gmailComposeUrl} target="_blank" rel="noopener noreferrer">
+                        <Mail className="h-4 w-4 mr-2" /> Gmail
+                      </a>
+                    ) : (
+                      <span>
+                        <Mail className="h-4 w-4 mr-2" /> Gmail
+                      </span>
+                    )}
+                  </Button>
+                  <Button variant="outline" className="w-full" asChild={!!memberEmail} disabled={!memberEmail}>
+                    {memberEmail ? (
+                      <a href={mailtoUrl}>
+                        <Mail className="h-4 w-4 mr-2" /> Mail App
+                      </a>
+                    ) : (
+                      <span>
+                        <Mail className="h-4 w-4 mr-2" /> Mail App
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
