@@ -340,46 +340,6 @@ const Tasks = () => {
     updateStatus(id, newStatus);
   };
 
-  useLayoutEffect(() => {
-    const nextRects = new Map<string, DOMRect>();
-
-    taskNodeRefs.current.forEach((node, taskId) => {
-      if (!node) return;
-
-      const nextRect = node.getBoundingClientRect();
-      nextRects.set(taskId, nextRect);
-
-      const previousRect = previousTaskRects.current.get(taskId);
-      if (!previousRect) return;
-
-      const deltaX = previousRect.left - nextRect.left;
-      const deltaY = previousRect.top - nextRect.top;
-
-      if (deltaX === 0 && deltaY === 0) return;
-
-      node.style.transition = "transform 0s";
-      node.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
-      node.style.willChange = "transform";
-
-      if (animationFrameRef.current !== null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-      }
-
-      animationFrameRef.current = window.requestAnimationFrame(() => {
-        node.style.transition = "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
-        node.style.transform = "translate3d(0, 0, 0)";
-
-        window.setTimeout(() => {
-          node.style.transition = "";
-          node.style.transform = "";
-          node.style.willChange = "";
-        }, 450);
-      });
-    });
-
-    previousTaskRects.current = nextRects;
-  }, [filtered, view, taskScope, statusFilter, dateFilter, search, tasks]);
-
   const setTaskNodeRef = (taskId: string) => (node: HTMLDivElement | null) => {
     if (node) {
       taskNodeRefs.current.set(taskId, node);
@@ -428,6 +388,46 @@ const Tasks = () => {
       .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
       .filter(matchesDateFilter)
   );
+
+  useLayoutEffect(() => {
+    const nextRects = new Map<string, DOMRect>();
+
+    taskNodeRefs.current.forEach((node, taskId) => {
+      if (!node) return;
+
+      const nextRect = node.getBoundingClientRect();
+      nextRects.set(taskId, nextRect);
+
+      const previousRect = previousTaskRects.current.get(taskId);
+      if (!previousRect) return;
+
+      const deltaX = previousRect.left - nextRect.left;
+      const deltaY = previousRect.top - nextRect.top;
+
+      if (deltaX === 0 && deltaY === 0) return;
+
+      node.style.transition = "transform 0s";
+      node.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+      node.style.willChange = "transform";
+
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        node.style.transition = "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = "translate3d(0, 0, 0)";
+
+        window.setTimeout(() => {
+          node.style.transition = "";
+          node.style.transform = "";
+          node.style.willChange = "";
+        }, 450);
+      });
+    });
+
+    previousTaskRects.current = nextRects;
+  }, [filtered, view, taskScope, statusFilter, dateFilter, search, tasks]);
 
   // Drag and drop handlers
   const handleDragStart = (taskId: string) => setDragTaskId(taskId);
