@@ -219,7 +219,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-0 shadow-md">
           <CardHeader>
-            <CardTitle className="text-lg">Campaign Performance</CardTitle>
+            <CardTitle className="text-lg">Performance</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <ResponsiveContainer width="100%" height={210}>
