@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { sendDiscordNotification } from "@/lib/discord";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,9 @@ const Tasks = () => {
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [pendingDoneTask, setPendingDoneTask] = useState<any>(null);
+  const taskNodeRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const previousTaskRects = useRef(new Map<string, DOMRect>());
+  const animationFrameRef = useRef<number | null>(null);
 
   // Create/edit form state
   const [title, setTitle] = useState("");
@@ -337,6 +340,54 @@ const Tasks = () => {
     updateStatus(id, newStatus);
   };
 
+  useLayoutEffect(() => {
+    const nextRects = new Map<string, DOMRect>();
+
+    taskNodeRefs.current.forEach((node, taskId) => {
+      if (!node) return;
+
+      const nextRect = node.getBoundingClientRect();
+      nextRects.set(taskId, nextRect);
+
+      const previousRect = previousTaskRects.current.get(taskId);
+      if (!previousRect) return;
+
+      const deltaX = previousRect.left - nextRect.left;
+      const deltaY = previousRect.top - nextRect.top;
+
+      if (deltaX === 0 && deltaY === 0) return;
+
+      node.style.transition = "transform 0s";
+      node.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+      node.style.willChange = "transform";
+
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        node.style.transition = "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = "translate3d(0, 0, 0)";
+
+        window.setTimeout(() => {
+          node.style.transition = "";
+          node.style.transform = "";
+          node.style.willChange = "";
+        }, 450);
+      });
+    });
+
+    previousTaskRects.current = nextRects;
+  }, [filtered, view, taskScope, statusFilter, dateFilter, search, tasks]);
+
+  const setTaskNodeRef = (taskId: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      taskNodeRefs.current.set(taskId, node);
+    } else {
+      taskNodeRefs.current.delete(taskId);
+    }
+  };
+
   const toggleAssignment = (userId: string) => {
     setAssignedUserIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
@@ -397,20 +448,21 @@ const Tasks = () => {
     const assignees = task.task_assignments?.map((a: any) => (a.profiles as any)?.display_name).filter(Boolean) || [];
 
     return (
-      <Card
-        className={`hover:shadow-md transition-all cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""}`}
-        draggable
-        onDragStart={() => handleDragStart(task.id)}
-        onClick={() => {
-          if (compact) {
-            // In kanban: expand inline for all users, only leaders can edit via button
-            setExpandedTaskId(isExpanded ? null : task.id);
-          } else {
-            setExpandedTaskId(isExpanded ? null : task.id);
-          }
-        }}
-      >
-        <CardContent className={compact ? "p-3" : "p-4"}>
+      <div ref={setTaskNodeRef(task.id)}>
+        <Card
+          className={`hover:shadow-md transition-all cursor-pointer ${dragTaskId === task.id ? "opacity-50" : ""} ${isExpanded ? "ring-2 ring-primary/30" : ""} ${task.status === "done" ? "border-green-500/40 bg-green-500/[0.03]" : ""}`}
+          draggable
+          onDragStart={() => handleDragStart(task.id)}
+          onClick={() => {
+            if (compact) {
+              // In kanban: expand inline for all users, only leaders can edit via button
+              setExpandedTaskId(isExpanded ? null : task.id);
+            } else {
+              setExpandedTaskId(isExpanded ? null : task.id);
+            }
+          }}
+        >
+          <CardContent className={compact ? "p-3" : "p-4"}>
           <div className={compact ? "" : "flex items-center gap-4"}>
             <div className={compact ? "" : "flex-1 min-w-0"}>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -598,8 +650,9 @@ const Tasks = () => {
               </DropdownMenu>
             )}
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     );
   };
 
