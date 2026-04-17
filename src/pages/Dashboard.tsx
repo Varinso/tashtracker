@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useNavigate } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
 
 const STATUS_COLORS = ["#d6d8e6", "#6366f1", "#f59e0b", "#22c55e"];
 
@@ -22,7 +23,7 @@ const KPI_STYLES = [
   "bg-gradient-to-br from-emerald-500 to-teal-600 text-white",
 ];
 
-const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -113,6 +114,8 @@ const Dashboard = () => {
     value: Math.round((d.activity / maxActivity) * 100),
   }));
 
+  const chartTooltipFormatter = (value: number) => [`${value}%`, "Activity"];
+
   const nextMeeting = meetings.find((m) => new Date(m.meeting_date).getTime() >= now) || null;
 
   const meetingCountdown = (() => {
@@ -197,7 +200,7 @@ const Dashboard = () => {
           { label: "Active Tasks", value: totalTasks, icon: CheckCircle2, sub: `${doneTasks} completed this cycle` },
           { label: "In Progress", value: inProgressTasks, icon: Clock, sub: `${tasks.filter((t) => t.status === "review").length} awaiting review` },
           { label: "Overdue", value: overdueTasks, icon: AlertTriangle, sub: `${Math.max(totalTasks - doneTasks, 0)} open items` },
-          { label: "Team Reach", value: members.length, icon: Users, sub: `${completionPct}% task completion` },
+          { label: "In Review", value: tasks.filter((t) => t.status === "review").length, icon: Users, sub: `${tasks.filter((t) => t.status === "review").length} tasks under review` },
         ].map((kpi, idx) => (
           <Card key={kpi.label} className={`${KPI_STYLES[idx]} border-0 shadow-md`}>
             <CardContent className="p-5">
@@ -227,7 +230,7 @@ const Dashboard = () => {
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis hide domain={[0, 100]} />
-                <Tooltip cursor={{ fill: "hsl(var(--muted))" }} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))" }} formatter={chartTooltipFormatter} labelStyle={{ color: "#111827" }} />
                 <Bar dataKey="value" radius={[8, 8, 4, 4]} fill="url(#dashboardBarGradient)" />
                 <defs>
                   <linearGradient id="dashboardBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -238,8 +241,15 @@ const Dashboard = () => {
               </BarChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Average weekly engagement: {weeklyEngagementData.reduce((sum, d) => sum + d.value, 0) / 7 | 0}%</span>
+              <span>Average weekly engagement: {Math.round(weeklyEngagementData.reduce((sum, d) => sum + d.value, 0) / 7)}%</span>
               <span>Peak: {Math.max(...weeklyEngagementData.map((d) => d.value))}%</span>
+            </div>
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total progress</span>
+                <span className="font-semibold">{completionPct}%</span>
+              </div>
+              <Progress value={completionPct} className="h-2.5" />
             </div>
           </CardContent>
         </Card>
@@ -284,9 +294,20 @@ const Dashboard = () => {
               <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={52}>
+                    <Pie
+                      data={statusData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={72}
+                      innerRadius={52}
+                      isAnimationActive
+                      animationBegin={100}
+                      animationDuration={900}
+                    >
                       {statusData.map((_, i) => (
-                        <Cell key={i} fill={STATUS_COLORS[i]} />
+                        <Cell key={i} fill={STATUS_COLORS[i]} isAnimationActive />
                       ))}
                     </Pie>
                     <Tooltip />
