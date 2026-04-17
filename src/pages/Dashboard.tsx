@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useProject } from "@/contexts/ProjectContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, CheckCircle2, Clock, AlertTriangle, Users, FolderOpen, Trash2, CalendarClock, ExternalLink, UserPlus, TimerReset } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertTriangle, Users, FolderOpen, Trash2, CalendarClock, ExternalLink, UserPlus } from "lucide-react";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
@@ -247,13 +247,20 @@ const Dashboard = () => {
         <div className="space-y-6">
           <Card className="border-0 shadow-md">
             <CardHeader>
-              <CardTitle className="text-lg">Upcoming Events</CardTitle>
+              <CardTitle className="text-lg">Upcoming Meeting</CardTitle>
             </CardHeader>
             <CardContent>
               {nextMeeting ? (
                 <div className="space-y-3 rounded-xl border p-3 bg-muted/30">
                   <div className="font-medium text-sm truncate">{nextMeeting.title}</div>
                   <div className="text-xs text-muted-foreground">Time: {format(new Date(nextMeeting.meeting_date), "h:mm a")}</div>
+                  <div className="rounded-lg bg-slate-950 text-slate-100 p-3 space-y-2">
+                    <div className="text-2xl font-semibold tracking-widest text-cyan-200">{meetingCountdown}</div>
+                    <div className="flex items-center gap-2 text-xs text-slate-300">
+                      <CalendarClock className="h-3.5 w-3.5 text-cyan-300" />
+                      Until {format(new Date(nextMeeting.meeting_date), "MMM d, h:mm a")}
+                    </div>
+                  </div>
                   <Button
                     size="sm"
                     className="w-full"
@@ -302,8 +309,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 border-0 shadow-md">
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="border-0 shadow-md">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Team Collaboration</CardTitle>
             <Button size="sm" variant="outline" onClick={() => navigate("/team")}>
@@ -340,23 +347,6 @@ const Dashboard = () => {
             ) : (
               <p className="text-sm text-muted-foreground">No members yet.</p>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-md bg-slate-950 text-slate-100 overflow-hidden relative">
-          <CardHeader>
-            <CardTitle className="text-lg text-slate-100 flex items-center gap-2">
-              <TimerReset className="h-5 w-5 text-cyan-300" /> Campaign Timer
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-4xl font-semibold tracking-widest text-cyan-200">{meetingCountdown}</div>
-            <div className="text-xs text-slate-400">{nextMeeting ? `Until ${nextMeeting.title}` : "Create a meeting to activate timer"}</div>
-            <div className="flex items-center gap-2 text-xs text-slate-300">
-              <CalendarClock className="h-4 w-4 text-cyan-300" />
-              {nextMeeting ? format(new Date(nextMeeting.meeting_date), "MMM d, h:mm a") : "No date set"}
-            </div>
-            <div className="h-24 rounded-lg bg-gradient-to-r from-cyan-400/10 via-indigo-400/10 to-fuchsia-400/10 border border-white/10" />
           </CardContent>
         </Card>
       </div>
