@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, Search, Download, ArrowUpRight, Users, Activity, Target, RotateCcw } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, Search, Download, ArrowUpRight, Users, Activity, Target, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -35,6 +35,7 @@ const TeamProgress = () => {
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
 
   const exportReport = () => {
     const rows = [
@@ -180,6 +181,14 @@ const TeamProgress = () => {
     ? Math.round((memberMetrics.reduce((sum, member) => sum + member.avgCompletionDays, 0) / memberMetrics.length) * 10) / 10
     : 0;
 
+  const toggleTimeline = (userId: string) => {
+    setExpandedTimelines((prev) => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+  };
+
   const distribution = [
     { label: "In Progress", value: tasks.filter((t) => t.status === "in_progress").length, color: "bg-blue-500" },
     { label: "Completed", value: tasks.filter((t) => t.status === "done").length, color: "bg-green-500" },
@@ -283,7 +292,7 @@ const TeamProgress = () => {
           <CardContent className="space-y-5">
             {filteredMembers.length > 0 ? (
               filteredMembers.map((member) => (
-                <div key={member.id} className="space-y-2">
+                <div key={member.id} className="space-y-3 border-b last:border-0 pb-4 last:pb-0">
                   <div className="flex items-center justify-between text-sm">
                     <div>
                       <span className="font-medium">{member.displayName}</span>
@@ -295,6 +304,37 @@ const TeamProgress = () => {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{member.doneTasks}/{member.totalTasks} tasks completed</span>
                     <span>{member.memberFiles.length} files</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <button
+                      className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+                      onClick={() => toggleTimeline(member.user_id)}
+                    >
+                      {expandedTimelines.has(member.user_id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      Activity Timeline ({member.memberActivity.length})
+                    </button>
+
+                    {expandedTimelines.has(member.user_id) && (
+                      member.memberActivity.length > 0 ? (
+                        <div className="relative pl-4 border-l-2 border-muted space-y-3 ml-1">
+                          {member.memberActivity.slice(0, 10).map((a: any) => (
+                            <div key={a.id} className="relative">
+                              <div className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 border-2 border-background" />
+                              <p className="text-sm">{a.action}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(a.created_at), "MMM d, h:mm a")}
+                              </p>
+                            </div>
+                          ))}
+                          {member.memberActivity.length > 10 && (
+                            <p className="text-xs text-muted-foreground">+{member.memberActivity.length - 10} more</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground pl-4">No activity recorded</p>
+                      )
+                    )}
                   </div>
                 </div>
               ))
