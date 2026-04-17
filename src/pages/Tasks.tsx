@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSearchParams } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type TaskStatus = "todo" | "in_progress" | "review" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -78,6 +79,7 @@ const Tasks = () => {
   const [view, setView] = useState<"list" | "kanban">("list");
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [pendingDoneTask, setPendingDoneTask] = useState<any>(null);
 
   // Create/edit form state
   const [title, setTitle] = useState("");
@@ -101,7 +103,22 @@ const Tasks = () => {
       .eq("project_id", currentProject.id)
       .order("created_at", { ascending: false });
 
-    setTasks(data || []);
+    const tasksData = data || [];
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+
+    const expiredDoneTasks = tasksData.filter(
+      (task) => task.status === "done" && new Date(task.updated_at || task.created_at) < cutoffDate
+    );
+
+    if (expiredDoneTasks.length > 0) {
+      await Promise.all(expiredDoneTasks.map((task) => supabase.from("tasks").delete().eq("id", task.id)));
+      const refreshed = tasksData.filter((task) => !expiredDoneTasks.some((expired) => expired.id === task.id));
+      setTasks(refreshed);
+    } else {
+      setTasks(tasksData);
+    }
   }, [currentProject]);
 
   const fetchMembers = useCallback(async () => {
@@ -312,6 +329,14 @@ const Tasks = () => {
     fetchTasks();
   };
 
+  const requestStatusChange = (id: string, newStatus: TaskStatus) => {
+    if (newStatus === "done") {
+      setPendingDoneTask(tasks.find((task) => task.id === id));
+      return;
+    }
+    updateStatus(id, newStatus);
+  };
+
   const toggleAssignment = (userId: string) => {
     setAssignedUserIds((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
@@ -424,7 +449,7 @@ const Tasks = () => {
                         variant={task.status === s ? "default" : "outline"}
                         size="sm"
                         className={`h-6 text-[10px] px-1.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
-                        onClick={() => updateStatus(task.id, s)}
+                        onClick={() => requestStatusChange(task.id, s)}
                         disabled={task.status === s}
                       >
                         {STATUS_LABELS[s]}
@@ -488,7 +513,7 @@ const Tasks = () => {
                       variant={task.status === s ? "default" : "outline"}
                       size="sm"
                       className={`h-7 text-xs px-2.5 ${task.status === s ? "" : "opacity-60 hover:opacity-100"}`}
-                      onClick={() => updateStatus(task.id, s)}
+                        onClick={() => requestStatusChange(task.id, s)}
                       disabled={task.status === s}
                     >
                       {STATUS_LABELS[s]}
@@ -560,7 +585,7 @@ const Tasks = () => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {STATUSES.map((s) => (
-                    <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); updateStatus(task.id, s); }}>
+                    <DropdownMenuItem key={s} onClick={(e) => { e.stopPropagation(); requestStatusChange(task.id, s); }}>
                       Move to {STATUS_LABELS[s]}
                     </DropdownMenuItem>
                   ))}
@@ -766,6 +791,32 @@ const Tasks = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pendingDoneTask} onOpenChange={(open) => !open && setPendingDoneTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark task as done?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark <span className="font-medium">{pendingDoneTask?.title}</span> as done.
+              After one week, completed tasks are automatically removed from the list.
+              Please make sure everything is finished before confirming.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDoneTask(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!pendingDoneTask) return;
+                await updateStatus(pendingDoneTask.id, "done");
+                setPendingDoneTask(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Mark Done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
