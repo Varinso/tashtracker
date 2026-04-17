@@ -106,9 +106,6 @@ const Team = () => {
         {members.map((m) => {
           const RoleIcon = ROLE_ICONS[m.role] || User;
           const memberEmail = (m.profiles as any)?.email;
-          const gmailComposeUrl = memberEmail
-            ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(memberEmail)}`
-            : "";
           const mailtoUrl = memberEmail ? `mailto:${encodeURIComponent(memberEmail)}` : "";
           return (
             <Card key={m.id}>
@@ -183,26 +180,15 @@ const Team = () => {
                   )}
                 </div>
 
-                <div className="mt-4 border-t pt-3 grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="w-full" asChild={!!memberEmail} disabled={!memberEmail}>
-                    {memberEmail ? (
-                      <a href={gmailComposeUrl} target="_blank" rel="noopener noreferrer">
-                        <Mail className="h-4 w-4 mr-2" /> Gmail
-                      </a>
-                    ) : (
-                      <span>
-                        <Mail className="h-4 w-4 mr-2" /> Gmail
-                      </span>
-                    )}
-                  </Button>
-                  <Button variant="outline" className="w-full" asChild={!!memberEmail} disabled={!memberEmail}>
+                <div className="mt-4 border-t pt-3">
+                  <Button variant="outline" size="sm" className="w-full h-8 text-xs" asChild={!!memberEmail} disabled={!memberEmail}>
                     {memberEmail ? (
                       <a href={mailtoUrl}>
-                        <Mail className="h-4 w-4 mr-2" /> Mail App
+                        <Mail className="h-3.5 w-3.5 mr-1.5" /> Mail
                       </a>
                     ) : (
                       <span>
-                        <Mail className="h-4 w-4 mr-2" /> Mail App
+                        <Mail className="h-3.5 w-3.5 mr-1.5" /> Mail
                       </span>
                     )}
                   </Button>
