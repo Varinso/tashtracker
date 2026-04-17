@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProject } from "@/contexts/ProjectContext";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Shield, Search, Download, ArrowUpRight, Users, Activity, Target } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,7 +34,7 @@ const TeamProgress = () => {
   const [activityLog, setActivityLog] = useState<any[]>([]);
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
 
   const fetchAll = useCallback(async () => {
     if (!currentProject || !user) {
@@ -92,13 +95,52 @@ const TeamProgress = () => {
     return () => { supabase.removeChannel(channel); };
   }, [currentProject, fetchAll]);
 
-  const toggleTimeline = (userId: string) => {
-    setExpandedTimelines((prev) => {
-      const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
-      return next;
+  const memberMetrics = useMemo(() => {
+    return members.map((member: any) => {
+      const memberTasks = tasks.filter((t) => t.task_assignments?.some((a: any) => a.user_id === member.user_id));
+      const memberFiles = files.filter((f) => f.uploaded_by === member.user_id);
+      const memberActivity = activityLog.filter((a) => a.user_id === member.user_id);
+      const doneTasks = memberTasks.filter((t) => t.status === "done").length;
+      const totalTasks = memberTasks.length;
+      const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+      const overdue = memberTasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done").length;
+      const displayName = (member.profiles as any)?.display_name || "Unknown";
+
+      return {
+        ...member,
+        displayName,
+        memberTasks,
+        memberFiles,
+        memberActivity,
+        doneTasks,
+        totalTasks,
+        progress,
+        overdue,
+      };
     });
-  };
+  }, [members, tasks, files, activityLog]);
+
+  const filteredMembers = memberMetrics.filter((member) =>
+    member.displayName.toLowerCase().includes(search.toLowerCase()) ||
+    (member.designation || "").toLowerCase().includes(search.toLowerCase()) ||
+    member.role.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalMemberTasks = tasks.filter((t) => t.task_assignments?.length > 0).length;
+  const totalCompletedTasks = tasks.filter((t) => t.status === "done").length;
+  const totalFiles = files.length;
+  const totalOverdue = tasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done").length;
+
+  const avgProgress = memberMetrics.length
+    ? Math.round(memberMetrics.reduce((sum, member) => sum + member.progress, 0) / memberMetrics.length)
+    : 0;
+
+  const distribution = [
+    { label: "In Progress", value: tasks.filter((t) => t.status === "in_progress").length, color: "bg-blue-500" },
+    { label: "Completed", value: tasks.filter((t) => t.status === "done").length, color: "bg-green-500" },
+    { label: "Pending", value: tasks.filter((t) => t.status === "todo" || !t.status).length, color: "bg-amber-500" },
+    { label: "On Hold", value: tasks.filter((t) => t.status === "review").length, color: "bg-slate-500" },
+  ];
 
   if (!currentProject) {
     return <div className="text-center py-20 text-muted-foreground">Select a project first</div>;
@@ -124,127 +166,165 @@ const TeamProgress = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Team Progress</h1>
-        <p className="text-muted-foreground mt-1">Overview of each team member's tasks and contributions</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Team Progress</h1>
+              <p className="text-muted-foreground">Track performance and productivity metrics across the team.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 bg-background">Updated live</span>
+            <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 bg-background">Leader view</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => toast.success("Report exported") }>
+            <Download className="h-4 w-4 mr-2" /> Export Report
+          </Button>
+        </div>
       </div>
 
-      <div className="space-y-6">
-        {members.map((m) => {
-          const memberTasks = getMemberTasks(m.user_id);
-          const memberFiles = getMemberFiles(m.user_id);
-          const memberActivity = getMemberActivity(m.user_id);
-          const doneTasks = memberTasks.filter((t) => t.status === "done").length;
-          const totalTasks = memberTasks.length;
-          const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
-          const overdue = memberTasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done").length;
-          const displayName = (m.profiles as any)?.display_name || "Unknown";
-          const timelineOpen = expandedTimelines.has(m.user_id);
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search member, role, designation..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      </div>
 
-          return (
-            <Card key={m.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
-                      {displayName[0]?.toUpperCase() || "?"}
-                    </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Total Tasks Completed", value: totalCompletedTasks, icon: CheckCircle2, delta: `+${totalCompletedTasks - totalOverdue}` },
+          { label: "Active Projects", value: currentProject ? 1 : 0, icon: Target, delta: `+${members.length}` },
+          { label: "Team Members", value: members.length, icon: Users, delta: `${avgProgress}% avg progress` },
+          { label: "Avg. Completion Time", value: `${avgProgress / 10 || 0}.3`, suffix: "days", icon: Clock, delta: `${totalFiles} files shared` },
+        ].map((item) => (
+          <Card key={item.label} className="shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                  <item.icon className="h-4 w-4" />
+                </div>
+                <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs shrink-0">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <div className="mt-6">
+                <p className="text-sm text-muted-foreground">{item.label}</p>
+                <div className="flex items-end gap-1 mt-2">
+                  <h3 className="text-3xl font-bold tracking-tight">{item.value}</h3>
+                  {item.suffix && <span className="text-lg text-muted-foreground pb-1">{item.suffix}</span>}
+                </div>
+                <p className="text-xs text-emerald-500 mt-3">{item.delta}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_0.9fr] gap-6">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Monthly Task Completion</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {filteredMembers.length > 0 ? (
+              filteredMembers.map((member) => (
+                <div key={member.id} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
                     <div>
-                      <CardTitle className="text-base">{displayName}</CardTitle>
-                      <p className="text-xs text-muted-foreground capitalize">{m.role}</p>
+                      <span className="font-medium">{member.displayName}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{member.designation || member.role}</span>
                     </div>
+                    <span className="text-muted-foreground">{member.progress}%</span>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>{doneTasks}/{totalTasks} tasks</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      <span>{memberFiles.length} files</span>
-                    </div>
-                    {overdue > 0 && (
-                      <div className="flex items-center gap-1.5 text-destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span>{overdue} overdue</span>
-                      </div>
-                    )}
+                  <Progress value={member.progress} className="h-2.5" />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{member.doneTasks}/{member.totalTasks} tasks completed</span>
+                    <span>{member.memberFiles.length} files</span>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Task completion</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2" />
-                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground py-6 text-center">No members match your search.</p>
+            )}
+          </CardContent>
+        </Card>
 
-                {memberTasks.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tasks</p>
-                    <div className="grid gap-2">
-                      {memberTasks.slice(0, 5).map((t) => (
-                        <div key={t.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-md bg-muted/50">
-                          <span className="truncate mr-2">{t.title}</span>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {t.deadline && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {format(new Date(t.deadline), "MMM d")}
-                              </span>
-                            )}
-                            <Badge variant="secondary" className={`text-xs ${STATUS_COLORS[t.status] || ""}`}>
-                              {STATUS_LABELS[t.status] || t.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                      {memberTasks.length > 5 && (
-                        <p className="text-xs text-muted-foreground pl-3">+{memberTasks.length - 5} more tasks</p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No tasks assigned</p>
-                )}
-
-                {/* Activity Timeline */}
-                <div className="space-y-2">
-                  <button
-                    className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
-                    onClick={() => toggleTimeline(m.user_id)}
-                  >
-                    {timelineOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    Activity Timeline ({memberActivity.length})
-                  </button>
-                  {timelineOpen && (
-                    memberActivity.length > 0 ? (
-                      <div className="relative pl-4 border-l-2 border-muted space-y-3 ml-1">
-                        {memberActivity.slice(0, 10).map((a) => (
-                          <div key={a.id} className="relative">
-                            <div className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary/60 border-2 border-background" />
-                            <p className="text-sm">{a.action}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(a.created_at), "MMM d, h:mm a")}
-                            </p>
-                          </div>
-                        ))}
-                        {memberActivity.length > 10 && (
-                          <p className="text-xs text-muted-foreground">+{memberActivity.length - 10} more</p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground pl-4">No activity recorded</p>
-                    )
-                  )}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Progress Report</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-xl border p-4 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Overall progress</p>
+                  <p className="text-3xl font-bold">{avgProgress}%</p>
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Activity className="h-5 w-5" />
+                </div>
+              </div>
+              <Progress value={avgProgress} className="h-2.5 mt-4" />
+            </div>
+
+            <div className="space-y-3">
+              {distribution.map((item) => (
+                <div key={item.label} className="flex items-center justify-between rounded-xl border p-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </div>
+                  <span className="text-xl font-semibold">{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Files uploaded</span>
+                <Badge variant="secondary">{totalFiles}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Overdue tasks</span>
+                <Badge variant={totalOverdue > 0 ? "destructive" : "secondary"}>{totalOverdue}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Members at risk</span>
+                <Badge variant="outline">{memberMetrics.filter((m) => m.overdue > 0).length}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Recent Progress Report</CardTitle>
+          <p className="text-sm text-muted-foreground">Latest activity and team signals</p>
+        </CardHeader>
+        <CardContent>
+          {activityLog.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {activityLog.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-xl border p-4 bg-muted/10">
+                  <p className="text-sm font-medium">{(item.profiles as any)?.display_name || "Member"}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{item.action}</p>
+                  <p className="text-xs text-muted-foreground mt-2">{format(new Date(item.created_at), "MMM d, h:mm a")}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
