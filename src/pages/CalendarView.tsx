@@ -23,9 +23,19 @@ import {
   isSameDay,
   isToday,
   eachDayOfInterval,
+  isBefore,
 } from "date-fns";
 
 type ViewMode = "month" | "week" | "day";
+
+const isTaskOverdue = (task: any): boolean => {
+  if (!task.deadline || task.status === "done") return false;
+  const deadline = new Date(task.deadline);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  deadline.setHours(0, 0, 0, 0);
+  return isBefore(deadline, today);
+};
 
 const CalendarView = () => {
   const { currentProject } = useProject();
@@ -124,12 +134,15 @@ function EventItem({ e, onTaskClick, onMeetingClick }: { e: any; onTaskClick: (i
   const isTask = e.type === "task";
   const isMeeting = e.type === "meeting";
   const isDone = isTask && e.status === "done";
+  const isOverdue = isTask && isTaskOverdue(e);
   return (
     <div
       onClick={(ev) => { ev.stopPropagation(); if (isTask) onTaskClick(e.id); else if (isMeeting) onMeetingClick(e.id); }}
       className={`text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
         isTask
-          ? isDone
+          ? isOverdue
+            ? "bg-red-500/15 text-red-700 dark:text-red-400"
+            : isDone
             ? "bg-green-500/15 text-green-700 dark:text-green-400"
             : "bg-primary/10 text-primary"
           : "bg-accent text-accent-foreground"
@@ -233,7 +246,7 @@ function DayView({ currentDate, getEventsForDay, onTaskClick, onMeetingClick }: 
                 <div
                   key={i}
                   onClick={() => { if (e.type === "task") onTaskClick(e.id); else if (e.type === "meeting") onMeetingClick(e.id); }}
-                  className={`px-3 py-2 rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity ${e.type === "task" ? (e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}
+                  className={`px-3 py-2 rounded-lg mb-1 cursor-pointer hover:opacity-80 transition-opacity ${e.type === "task" ? (isTaskOverdue(e) ? "bg-red-500/15 border border-red-500/30" : e.status === "done" ? "bg-green-500/15 border border-green-500/30" : "bg-primary/10 border border-primary/20") : "bg-accent border border-accent-foreground/10"}`}
                 >
                   <span className="text-sm font-medium">{e.title}</span>
                   {e.type === "task" && <Badge variant="outline" className="ml-2 text-xs">{e.status}</Badge>}
