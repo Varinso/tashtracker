@@ -288,7 +288,7 @@ const Dashboard = () => {
 
           <Card className="border-0 shadow-md">
             <CardHeader>
-              <CardTitle className="text-lg">Status Breakdown</CardTitle>
+              <CardTitle className="text-lg">Status Breakdowns</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[180px]">
