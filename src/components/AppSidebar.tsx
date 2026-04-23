@@ -79,7 +79,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 border-b border-border/60 bg-background/40 backdrop-blur-xl">
         {!collapsed &&
         <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
@@ -105,7 +105,7 @@ export function AppSidebar() {
         <div className="px-4 mb-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between text-sm h-9">
+                <Button variant="outline" className="w-full justify-between text-sm h-9 bg-background/60 border-border/70 backdrop-blur">
                   <span className="truncate">{currentProject?.name || "Select Project"}</span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </Button>

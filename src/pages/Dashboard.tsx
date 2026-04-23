@@ -230,7 +230,19 @@ const Dashboard = () => {
                 <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis hide domain={[0, 100]} />
-                <Tooltip cursor={{ fill: "hsl(var(--muted))" }} formatter={chartTooltipFormatter} labelStyle={{ color: "#111827" }} />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted))" }}
+                  formatter={chartTooltipFormatter}
+                  contentStyle={{
+                    background: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "12px",
+                    color: "hsl(var(--popover-foreground))",
+                    boxShadow: "0 24px 60px rgba(0, 0, 0, 0.35)",
+                  }}
+                  labelStyle={{ color: "hsl(var(--popover-foreground))" }}
+                  itemStyle={{ color: "hsl(var(--muted-foreground))" }}
+                />
                 <Bar dataKey="value" radius={[8, 8, 4, 4]} fill="url(#dashboardBarGradient)" />
                 <defs>
                   <linearGradient id="dashboardBarGradient" x1="0" y1="0" x2="0" y2="1">
