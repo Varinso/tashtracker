@@ -352,24 +352,30 @@ export type Database = {
       }
       project_members: {
         Row: {
+          designation: string | null
           id: string
           joined_at: string
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
+          task_permissions: Json
           user_id: string
         }
         Insert: {
+          designation?: string | null
           id?: string
           joined_at?: string
           project_id: string
           role?: Database["public"]["Enums"]["app_role"]
+          task_permissions?: Json
           user_id: string
         }
         Update: {
+          designation?: string | null
           id?: string
           joined_at?: string
           project_id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          task_permissions?: Json
           user_id?: string
         }
         Relationships: [
@@ -586,6 +592,10 @@ export type Database = {
       create_project: {
         Args: { _description: string; _name: string }
         Returns: string
+      }
+      has_project_task_permission: {
+        Args: { _permission: string; _project_id: string; _user_id: string }
+        Returns: boolean
       }
       has_role: {
         Args: {
