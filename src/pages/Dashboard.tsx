@@ -319,7 +319,7 @@ const Dashboard = () => {
                       animationDuration={900}
                     >
                       {statusData.map((_, i) => (
-                        <Cell key={i} fill={STATUS_COLORS[i]} isAnimationActive />
+                        <Cell key={i} fill={STATUS_COLORS[i]} />
                       ))}
                     </Pie>
                     <Tooltip />
