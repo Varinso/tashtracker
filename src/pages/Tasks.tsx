@@ -114,6 +114,7 @@ const Tasks = () => {
       .from("tasks")
       .select("*, task_assignments(user_id, profiles!task_assignments_user_id_profiles_fkey(display_name))")
       .eq("project_id", currentProject.id)
+      .eq("is_archived", false)
       .order("created_at", { ascending: false });
 
     const tasksData = data || [];
@@ -126,7 +127,7 @@ const Tasks = () => {
     );
 
     if (expiredDoneTasks.length > 0) {
-      await Promise.all(expiredDoneTasks.map((task) => supabase.from("tasks").delete().eq("id", task.id)));
+      await Promise.all(expiredDoneTasks.map((task) => supabase.from("tasks").update({ is_archived: true }).eq("id", task.id)));
       const refreshed = tasksData.filter((task) => !expiredDoneTasks.some((expired) => expired.id === task.id));
       setTasks(refreshed);
     } else {
